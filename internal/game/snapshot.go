@@ -8,14 +8,25 @@ type Snapshot struct {
 }
 
 type ViewState struct {
-	RoomID      string      `json:"roomId"`
-	Phase       Phase       `json:"phase"`
-	Version     int64       `json:"version"`
-	Seats       [4]SeatView `json:"seats"`
-	Teams       [2]TeamView `json:"teams"`
-	BottomCount int         `json:"bottomCount"`
+	RoomID  string      `json:"roomId"`
+	Phase   Phase       `json:"phase"`
+	Version int64       `json:"version"`
+	Seats   [4]SeatView `json:"seats"`
+	Teams   [2]TeamView `json:"teams"`
 
-	MyHand []rules.Card `json:"myHand"` // 只给本人
+	RoundIndex      int      `json:"roundIndex"`
+	CallMode        CallMode `json:"callMode"`
+	CallPassedSeats [4]bool  `json:"callPassedSeats"` // 哪些座位已pass
+
+	StarterSeat   int        `json:"starterSeat"`
+	CallTurnSeat  int        `json:"callTurnSeat"`
+	CallPassCount int        `json:"callPassCount"`
+	Trump         TrumpState `json:"trump"`
+
+	BottomOwnerSeat int `json:"bottomOwnerSeat"`
+
+	MyBottom []rules.Card `json:"myBottom"` // 仅在 PhaseBottom 本人可见
+	MyHand   []rules.Card `json:"myHand"`   // 只给本人
 }
 
 type SeatView struct {
@@ -40,11 +51,13 @@ type ErrorMsg struct {
 func MakeView(st GameState, uid string) ViewState {
 	var seats [4]SeatView
 	var teams [2]TeamView
-	myHand := []rules.Card(nil)
 
 	for t := 0; t < 2; t++ {
 		teams[t] = TeamView{LevelRank: st.Teams[t].LevelRank}
 	}
+
+	myHand := []rules.Card(nil)
+	myBottom := []rules.Card(nil)
 
 	for i := 0; i < 4; i++ {
 		seats[i] = SeatView{
@@ -59,13 +72,40 @@ func MakeView(st GameState, uid string) ViewState {
 		}
 	}
 
+	passed := [4]bool{}
+	for i := 0; i < 4; i++ {
+		if (st.CallPassMask & (1 << uint(i))) != 0 {
+			passed[i] = true
+		}
+	}
+
+	// 私有：只有坐家在扣底阶段能看到底牌牌面
+	if st.Phase == PhaseBottom && st.BottomOwnerSeat >= 0 {
+		ownerUID := st.Seats[st.BottomOwnerSeat].UID
+		if ownerUID == uid {
+			myBottom = append([]rules.Card(nil), st.Bottom...)
+		}
+	}
+
 	return ViewState{
-		RoomID:      st.RoomID,
-		Phase:       st.Phase,
-		Version:     st.Version,
-		Seats:       seats,
-		Teams:       teams,
-		BottomCount: st.BottomCount,
-		MyHand:      myHand,
+		RoomID:  st.RoomID,
+		Phase:   st.Phase,
+		Version: st.Version,
+		Seats:   seats,
+		Teams:   teams,
+
+		RoundIndex:      st.RoundIndex,
+		CallMode:        st.CallMode,
+		CallPassedSeats: passed,
+
+		StarterSeat:   st.StarterSeat,
+		CallTurnSeat:  st.CallTurnSeat,
+		CallPassCount: st.CallPassCount,
+		Trump:         st.Trump,
+
+		BottomOwnerSeat: st.BottomOwnerSeat,
+
+		MyBottom: myBottom,
+		MyHand:   myHand,
 	}
 }

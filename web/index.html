@@ -2,43 +2,154 @@
 <html>
 <head>
     <meta charset="utf-8"/>
-    <title>升级 LAN Demo</title>
+    <title>升级 LAN UI</title>
     <style>
-        body { font-family: sans-serif; margin: 16px; }
-        .row { display:flex; gap:12px; }
-        .card { border:1px solid #ccc; padding:12px; width: 220px; }
-        button { margin: 4px 0; width: 100%; }
-        pre { background:#f6f6f6; padding:10px; overflow:auto; }
+        .seatCard {
+            border: 1px solid #bbb;
+            border-radius: 12px;
+            padding: 10px 12px;
+            min-width: 190px;
+            background: #fff;
+        }
+        .seatCard.me { border-color: #4c9ffe; box-shadow: 0 0 0 2px rgba(76,159,254,.15); }
+        .seatCard.turn { border-color: #f5a623; box-shadow: 0 0 0 2px rgba(245,166,35,.15); }
+        .seatCard.owner { border-color: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,.15); }
+
+        .seatTop { display:flex; justify-content:space-between; align-items:center; }
+        .seatBadges { display:flex; gap:6px; align-items:center; font-size: 14px; }
+        .badge { padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; background:#fafafa; font-size: 12px; }
+        .badge.on { background:#eef; border-color:#cde; }
+        .uid { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        body { font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 16px; }
+        .row { display:flex; gap:12px; align-items:stretch; flex-wrap:wrap; }
+        .panel { border:1px solid #ccc; padding:12px; border-radius:10px; }
+        input { width: 140px; padding: 6px 8px; border-radius: 8px; border: 1px solid #bbb; }
+        button { cursor:pointer; border:1px solid #bbb; background:#fff; border-radius:10px; padding:10px 12px; }
+        button.primary { border-color:#4c9ffe; }
+        button.danger { border-color:#d33; }
+        button:disabled { opacity:.5; cursor:not-allowed; }
+
+        .status {
+            margin-top: 12px;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid #ddd;
+            background: #fafafa;
+            display:flex;
+            flex-wrap:wrap;
+            gap: 10px 16px;
+            font-size: 14px;
+        }
+        .kv b { font-weight: 700; }
+        .hint { color:#666; font-size: 12px; margin-top: 6px; }
+
+        .cardsRow { display:flex; flex-wrap:wrap; gap:8px; }
+        .rowTitle { font-weight:700; margin-bottom:8px; }
+
+        .cardBtn {
+            border: 1px solid #bbb;
+            background: white;
+            border-radius: 10px;
+            padding: 8px 10px;
+            min-width: 54px;
+            text-align:center;
+            user-select:none;
+            font-size: 18px;
+            line-height: 1;
+        }
+        .cardBtn.small { font-size: 16px; min-width: 46px; padding: 7px 9px; }
+        .cardBtn.red { color: #d11; }
+        .cardBtn.black { color: #111; }
+        .cardBtn.selected {
+            outline: 3px solid #4c9ffe;
+            outline-offset: 0px;
+            background: #f2f8ff;
+            border-color: #4c9ffe;
+        }
+
+        pre { background:#f6f6f6; padding:10px; border-radius:10px; overflow:auto; max-height: 260px; }
     </style>
 </head>
+
 <body>
-<h2>升级 - 房间骨架（Lobby/Ready/Start）</h2>
+<h2>升级 - 前端交互 UI（可选牌 + 定主/Pass）</h2>
 
 <div class="row">
-    <div class="card">
+    <div class="panel">
         <div><b>连接</b></div>
-        <div>UID: <input id="uid" value="u1"/></div>
-        <div>Room: <input id="room" value="default"/></div>
-        <button id="btnConnect">Connect</button>
-        <button id="btnDisconnect">Disconnect</button>
-        <hr/>
-        <div><b>我的操作</b></div>
-        <button onclick="sit(0)">Sit seat 0</button>
-        <button onclick="sit(1)">Sit seat 1</button>
-        <button onclick="sit(2)">Sit seat 2</button>
-        <button onclick="sit(3)">Sit seat 3</button>
-        <button onclick="leaveSeat()">Leave seat</button>
-        <button onclick="ready()">Ready</button>
-        <button onclick="unready()">Unready</button>
-        <button onclick="start()">Start (manual)</button>
+        <div style="margin-top:8px;">UID: <input id="uid" value="u1"/></div>
+        <div style="margin-top:8px;">Room: <input id="room" value="default"/></div>
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button class="primary" id="btnConnect">Connect</button>
+            <button id="btnDisconnect">Disconnect</button>
+        </div>
+        <div class="hint">建议开 4 个窗口，uid 改成 u1..u4。</div>
     </div>
 
-    <div class="card" style="flex:1;">
-        <div><b>Snapshot</b></div>
-        <pre id="snapshot">{}</pre>
-        <div><b>Log</b></div>
-        <pre id="log"></pre>
+    <div class="panel" style="flex:1; min-width: 360px;">
+        <div><b>座位/准备</b></div>
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="btnSit0">坐下0</button>
+            <button id="btnSit1">坐下1</button>
+            <button id="btnSit2">坐下2</button>
+            <button id="btnSit3">坐下3</button>
+            <button id="btnLeave">离座</button>
+            <button id="btnReady">准备</button>
+            <button id="btnUnready">取消准备</button>
+            <button id="btnStart">Start</button>
+        </div>
+        <div class="hint">全员准备后自动发牌并进入定主阶段。</div>
     </div>
+
+    <div class="panel" style="flex:1; min-width: 360px;">
+        <div><b>操作</b></div>
+        <div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">
+            <button id="btnCallTrump">定主</button>
+            <button id="btnPass">Pass</button>
+            <button id="btnPutBottom">扣底</button>
+            <button id="btnClear" class="danger">清空选择</button>
+
+            <button id="btnChangeTrump" disabled>改主（占位）</button>
+            <button id="btnAttackTrump" disabled>攻主（占位）</button>
+            <button id="btnPlay" disabled>出牌（占位）</button>
+        </div>
+        <div class="hint">当前只实现：定主 / Pass / 清空选择（扣底后端未实现会 reject）。</div>
+    </div>
+</div>
+
+<div class="status" id="statusBar">
+    <div class="kv"><b>WS</b>: <span id="stWS">-</span></div>
+    <div class="kv"><b>phase</b>: <span id="stPhase">-</span></div>
+    <div class="kv"><b>starter</b>: <span id="stStarter">-</span></div>
+    <div class="kv"><b>callTurn</b>: <span id="stCallTurn">-</span></div>
+    <div class="kv"><b>pass</b>: <span id="stPass">-</span></div>
+    <div class="kv"><b>trump</b>: <span id="stTrump">-</span></div>
+    <div class="kv"><b>myHand</b>: <span id="stHandN">0</span></div>
+    <div class="kv"><b>myBottom</b>: <span id="stBottomN">0</span></div>
+</div>
+<div class="panel" style="margin-top:12px;">
+    <div><b>座位</b>（👉=轮到定主 / 🟨=坐家(扣底) / 🟦=你）</div>
+    <div id="seatBar" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;"></div>
+</div>
+
+
+<div class="row" style="margin-top:12px;">
+    <div class="panel" style="flex:1; min-width: 360px;">
+        <div class="rowTitle">底牌（仅坐家在扣底阶段可见）</div>
+        <div class="cardsRow" id="bottomRow"></div>
+        <div class="hint">底牌只有在 phase=bottom 且你是坐家时可见。</div>
+    </div>
+
+    <div class="panel" style="flex:2; min-width: 360px;">
+        <div class="rowTitle">手牌</div>
+        <div class="cardsRow" id="handRow"></div>
+        <div class="hint">点击牌选中/取消选中；定主会从选中牌里提取：王 + 本队级牌(1或2张)。</div>
+    </div>
+</div>
+
+<div class="panel" style="margin-top:12px;">
+    <div><b>日志</b></div>
+    <pre id="log"></pre>
 </div>
 
 <script src="./app.js"></script>

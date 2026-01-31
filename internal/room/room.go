@@ -2,9 +2,8 @@ package room
 
 import (
 	"encoding/json"
-	"upgrade-lan/internal/game/rules"
-
 	"upgrade-lan/internal/game"
+	"upgrade-lan/internal/game/rules"
 	"upgrade-lan/internal/transport"
 )
 
@@ -37,6 +36,16 @@ func NewRoom(id string) *Room {
 	// 初始化双方级牌 = 2
 	st.Teams[0].LevelRank = rules.R2
 	st.Teams[1].LevelRank = rules.R2
+
+	st.RoundIndex = 0
+	st.NextStarterSeat = 0 // 后续小局用（结算写回）
+	st.StarterSeat = -1    //
+	st.CallTurnSeat = -1   // 首局抢定主不需要turn
+	st.CallPassCount = 0
+	st.CallPassMask = 0
+	st.CallMode = game.CallModeRace // 首局抢定主
+	st.BottomOwnerSeat = -1
+	st.Trump.CallerSeat = -1
 
 	return &Room{
 		id:    id,

@@ -1,6 +1,8 @@
 package rules
 
-import "sort"
+import (
+	"sort"
+)
 
 type SortCtx struct {
 	LevelRank    Rank

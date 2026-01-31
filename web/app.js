@@ -1,7 +1,157 @@
 let ws = null;
+let lastState = null;
+let UI = null;
+const selected = new Set();
 
 const $ = (id) => document.getElementById(id);
 const log = (s) => { $("log").textContent = (s + "\n") + $("log").textContent; };
+
+function initUIRefs() {
+    UI = {
+        btnReady: $("btnReady"),
+        btnUnready: $("btnUnready"),
+        btnCallTrump: $("btnCallTrump"),
+        btnPass: $("btnPass"),
+        btnPutBottom: $("btnPutBottom"),
+        btnStart: $("btnStart"),
+    };
+}
+
+function setPrimary(btn, on) {
+    if (!btn) return;
+    if (on) btn.classList.add("primary");
+    else btn.classList.remove("primary");
+}
+
+function setDisabled(btn, on) {
+    if (!btn) return;
+    btn.disabled = !!on;
+}
+
+function mySeatIndex(st) {
+    if (!st) return -1;
+    const uid = $("uid").value.trim();
+    for (let i = 0; i < 4; i++) {
+        if ((st.seats[i].uid || "") === uid) return i;
+    }
+    return -1;
+}
+
+function mySeatReady(st, seat) {
+    if (!st || seat < 0) return false;
+    return !!st.seats[seat].ready;
+}
+
+function updateActionAvailability(st) {
+    if (!UI) return;
+
+    // 默认全部不高亮（由阶段决定）
+    setPrimary(UI.btnReady, false);
+    setPrimary(UI.btnCallTrump, false);
+    setPrimary(UI.btnPutBottom, false);
+
+    // 未连接/未收到snapshot：全部禁用
+    if (!st) {
+        setDisabled(UI.btnReady, true);
+        setDisabled(UI.btnUnready, true);
+        setDisabled(UI.btnStart, true);
+
+        setDisabled(UI.btnCallTrump, true);
+        setDisabled(UI.btnPass, true);
+        setDisabled(UI.btnPutBottom, true);
+        return;
+    }
+
+    const seat = mySeatIndex(st);
+    const seated = seat >= 0;
+    const readyNow = mySeatReady(st, seat);
+
+    // ---- lobby 阶段：可坐下/准备/Start；不可定主 ----
+    if (st.phase === "lobby") {
+        setDisabled(UI.btnReady, !seated || readyNow);
+        setDisabled(UI.btnUnready, !seated || !readyNow);
+        setDisabled(UI.btnStart, true); // 可选：你也可以允许手动 start：seated && allReady
+
+        setPrimary(UI.btnReady, seated && !readyNow); // 需要你去准备时高亮
+        setPrimary(UI.btnCallTrump, false);
+
+        setDisabled(UI.btnCallTrump, true);
+        setDisabled(UI.btnPass, true);
+        setDisabled(UI.btnPutBottom, true);
+        return;
+    }
+
+    // ---- call_trump 阶段 ----
+    if (st.phase === "call_trump") {
+        setDisabled(UI.btnReady, true);
+        setDisabled(UI.btnUnready, true);
+        setDisabled(UI.btnStart, true);
+
+        const mySeat = mySeatIndex(st);
+        const seated = mySeat >= 0;
+
+        const alreadyPassed = st.callPassedSeats ? !!st.callPassedSeats[mySeat] : false;
+
+        let canAct = false;
+        if (st.callMode === "race") {
+            // ✅ 抢定主：starter未确定前，所有坐下且未pass的人都能操作
+            canAct = seated && (st.starterSeat < 0) && !alreadyPassed;
+        } else {
+            // ✅ 顺位定主：轮到你且未pass
+            canAct = seated && (st.callTurnSeat === mySeat) && !alreadyPassed;
+        }
+
+        setDisabled(UI.btnCallTrump, !canAct);
+        setDisabled(UI.btnPass, !canAct);
+
+        setPrimary(UI.btnCallTrump, canAct);
+        setDisabled(UI.btnPutBottom, true);
+        return;
+    }
+
+
+    // ---- bottom 阶段：只有坐家可以扣底（后端未实现也先按逻辑做）----
+    if (st.phase === "bottom") {
+        setDisabled(UI.btnReady, true);
+        setDisabled(UI.btnUnready, true);
+        setDisabled(UI.btnStart, true);
+
+        const ownerSeat = (typeof st.bottomOwnerSeat === "number") ? st.bottomOwnerSeat : -1;
+        const isOwner = seated && (seat === ownerSeat);
+        const dealerSeat = (st.trump && typeof st.trump.callerSeat === "number") ? st.trump.callerSeat : -1;
+
+        setDisabled(UI.btnPutBottom, !isOwner);
+        setPrimary(UI.btnPutBottom, isOwner);
+
+        setDisabled(UI.btnCallTrump, true);
+        setDisabled(UI.btnPass, true);
+        return;
+    }
+
+    // ---- 其他阶段：都禁用（后续做出牌再开放）----
+    setDisabled(UI.btnReady, true);
+    setDisabled(UI.btnUnready, true);
+    setDisabled(UI.btnStart, true);
+
+    setDisabled(UI.btnCallTrump, true);
+    setDisabled(UI.btnPass, true);
+    setDisabled(UI.btnPutBottom, true);
+}
+
+function wsStatusText() {
+    if (!ws) return "null";
+    switch (ws.readyState) {
+        case 0: return "CONNECTING";
+        case 1: return "OPEN";
+        case 2: return "CLOSING";
+        case 3: return "CLOSED";
+        default: return String(ws.readyState);
+    }
+}
+
+function setWSStatus() {
+    $("stWS").textContent = wsStatusText();
+}
 
 function connect() {
     const uid = $("uid").value.trim();
@@ -9,14 +159,26 @@ function connect() {
     const url = `ws://${location.host}/ws?uid=${encodeURIComponent(uid)}&room=${encodeURIComponent(room)}`;
 
     ws = new WebSocket(url);
-    ws.onopen = () => log("[ws] open");
-    ws.onclose = () => log("[ws] close");
-    ws.onerror = (e) => log("[ws] error " + (e?.message || ""));
+    setWSStatus();
+    log(`[ui] connect -> ${url}`);
+
+    ws.onopen = () => {
+        setWSStatus();
+        log("[ws] open");
+    };
+    ws.onclose = () => {
+        setWSStatus();
+        log("[ws] close");
+    };
+    ws.onerror = () => {
+        setWSStatus();
+        log("[ws] error");
+    };
     ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
         if (msg.type === "snapshot") {
-            $("snapshot").textContent = JSON.stringify(msg.state, null, 2);
-            log(`phase=${msg.state.phase} myHand=${(msg.state.myHand||[]).length} bottomCount=${msg.state.bottomCount}`);
+            lastState = msg.state;
+            renderAll(lastState);
         } else if (msg.type === "error") {
             log(`[error] ${msg.code}: ${msg.message}`);
         } else {
@@ -26,20 +188,287 @@ function connect() {
 }
 
 function disconnect() {
+    log("[ui] disconnect");
     if (ws) ws.close();
     ws = null;
+    lastState = null;
+    selected.clear();
+    renderAll(null);
+    setWSStatus();
 }
 
 function send(type, payload) {
-    if (!ws || ws.readyState !== 1) return log("not connected");
-    ws.send(JSON.stringify({ type, payload }));
+    if (!ws || ws.readyState !== 1) {
+        log(`[send] blocked (ws=${wsStatusText()}) type=${type}`);
+        return;
+    }
+    const msg = { type, payload };
+    log(`[send] ${type} ${JSON.stringify(payload)}`);
+    ws.send(JSON.stringify(msg));
 }
 
+// ===== lobby actions =====
 function sit(seat) { send("room.sit", { seat }); }
 function leaveSeat() { send("room.leave_seat", {}); }
 function ready() { send("room.ready", {}); }
 function unready() { send("room.unready", {}); }
 function start() { send("game.start", {}); }
 
-$("btnConnect").onclick = connect;
-$("btnDisconnect").onclick = disconnect;
+// ===== call trump actions =====
+function callPass() { send("game.call_pass", {}); }
+
+function actionCallTrump() {
+    if (!lastState) return log("[ui] no snapshot yet");
+    const st = lastState;
+    const hand = st.myHand || [];
+
+    const mySeat = findMySeatIndex(st);
+    if (mySeat < 0) return log("你还没坐下（请先坐下）");
+
+    const myTeam = st.seats[mySeat].team;
+    const myLevelRank = st.teams[myTeam].levelRank;
+
+    const selectedCards = hand.filter(c => selected.has(c.id));
+
+    const joker = selectedCards.find(c => c.kind === "joker_big" || c.kind === "joker_small");
+    if (!joker) return log("请选择一张王（大王或小王）");
+
+    const levels = selectedCards.filter(c => c.kind === "normal" && c.rank === myLevelRank);
+    if (levels.length !== 1 && levels.length !== 2) {
+        return log(`请选择 1 或 2 张本队级牌（rank=${myLevelRank}）`);
+    }
+
+    send("game.call_trump", { jokerId: joker.id, levelIds: levels.map(x => x.id) });
+}
+
+function actionPutBottom() {
+    log("扣底：后端尚未实现 put_bottom（目前会被 reject）");
+    // send("game.put_bottom", { ... })
+}
+
+function clearSelection() {
+    selected.clear();
+    renderAll(lastState);
+}
+
+// ===== render =====
+function renderAll(st) {
+    renderStatus(st);
+    renderSeatBar(st);
+    renderCards(st);
+    updateActionAvailability(st);
+}
+
+function renderSeatBar(st) {
+    const el = $("seatBar");
+    if (!el) return;
+
+    el.innerHTML = "";
+    if (!st) return;
+
+    const mode = st.callMode; // "race" | "ordered"
+    const starter = (typeof st.starterSeat === "number") ? st.starterSeat : -1;
+
+
+    const me = findMySeatIndex(st);
+    const turn = (typeof st.callTurnSeat === "number") ? st.callTurnSeat : -1;
+    const owner = (typeof st.bottomOwnerSeat === "number") ? st.bottomOwnerSeat : -1;
+
+    for (let i = 0; i < 4; i++) {
+        const s = st.seats[i];
+        const card = document.createElement("div");
+        card.className = "seatCard";
+
+        if (i === me) card.classList.add("me");
+
+        if (st.phase === "call_trump") {
+            if (mode === "ordered" && i === st.callTurnSeat) card.classList.add("turn");
+            // race 模式可选：让所有“未pass的坐下玩家”有淡黄色边框，或者只强调“可抢”
+            if (mode === "race" && starter < 0 && s.uid) card.classList.add("turn");
+        }
+
+        if (st.phase === "bottom" && i === st.bottomOwnerSeat) card.classList.add("owner");
+
+        const badges = [];
+        // race：starter 未确定前，所有坐下玩家都“可抢”
+        if (st.phase === "call_trump" && mode === "race" && starter < 0) {
+            badges.push("⚡可抢");
+        }
+        // starter 确定后标记
+        if (i === starter && starter >= 0) badges.push("⚡Starter");
+        // ordered 模式才显示 👉
+        if (st.phase === "call_trump" && mode === "ordered" && i === st.callTurnSeat) badges.push("👉");
+        // bottom 阶段坐家
+        if (st.phase === "bottom" && i === st.bottomOwnerSeat) badges.push("🟨");
+        // 我自己
+        if (i === me) badges.push("🟦");
+        // 已pass
+        if (st.phase === "call_trump" && st.callPassedSeats && st.callPassedSeats[i]) badges.push("⛔pass");
+
+        const uid = s.uid || "(empty)";
+        const online = !!s.online;
+        const ready = !!s.ready;
+        const team = (typeof s.team === "number") ? s.team : "?";
+        const handCount = (typeof s.handCount === "number") ? s.handCount : 0;
+
+        card.innerHTML = `
+      <div class="seatTop">
+        <div><b>Seat ${i}</b> <span class="uid">${escapeHtml(uid)}</span></div>
+        <div class="seatBadges">${badges.join(" ")}</div>
+      </div>
+      <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
+        <span class="badge ${online ? "on" : ""}">online: ${online}</span>
+        <span class="badge ${ready ? "on" : ""}">ready: ${ready}</span>
+        <span class="badge">team: ${team}</span>
+        <span class="badge">hand: ${handCount}</span>
+      </div>
+    `;
+        el.appendChild(card);
+    }
+}
+
+function escapeHtml(s) {
+    return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+}
+
+
+function renderStatus(st) {
+    setWSStatus();
+
+    if (!st) {
+        $("stPhase").textContent = "-";
+        $("stStarter").textContent = "-";
+        $("stCallTurn").textContent = "-";
+        $("stPass").textContent = "-";
+        $("stTrump").textContent = "-";
+        $("stHandN").textContent = "0";
+        $("stBottomN").textContent = "0";
+        $("handRow").innerHTML = "";
+        $("bottomRow").innerHTML = "";
+        return;
+    }
+
+    $("stPhase").textContent = st.callMode ? `${st.phase} (${st.callMode})` : st.phase;
+    $("stStarter").textContent = String(st.starterSeat ?? "-");
+    $("stCallTurn").textContent = String(st.callTurnSeat ?? "-");
+    $("stPass").textContent = String(st.callPassCount ?? "-");
+
+    $("stHandN").textContent = String((st.myHand || []).length);
+    $("stBottomN").textContent = String((st.myBottom || []).length);
+
+    const tr = st.trump || {};
+    let trumpStr = "";
+    if (tr.isHardTrump) {
+        trumpStr = `硬主 level=${tr.levelRank || "?"} caller=${tr.callerSeat}`;
+    } else if (tr.hasTrumpSuit) {
+        trumpStr = `主=${suitEmoji(tr.suit)} level=${tr.levelRank || "?"} locked=${!!tr.locked} caller=${tr.callerSeat}`;
+    } else {
+        trumpStr = "未定主";
+    }
+    $("stTrump").textContent = trumpStr;
+}
+
+function renderCards(st) {
+    const hand = (st && st.myHand) ? st.myHand : [];
+    const bottom = (st && st.myBottom) ? st.myBottom : [];
+
+    // 清理不可见选中
+    const visibleIds = new Set([...hand, ...bottom].map(c => c.id));
+    for (const id of [...selected]) {
+        if (!visibleIds.has(id)) selected.delete(id);
+    }
+
+    $("handRow").innerHTML = "";
+    for (const c of hand) $("handRow").appendChild(makeCardButton(c, "hand"));
+
+    $("bottomRow").innerHTML = "";
+    for (const c of bottom) $("bottomRow").appendChild(makeCardButton(c, "bottom"));
+}
+
+function makeCardButton(card, zone) {
+    const btn = document.createElement("button");
+    btn.className = "cardBtn";
+
+    const colorCls = cardColorClass(card);
+    btn.classList.add(colorCls);
+
+    if (selected.has(card.id)) btn.classList.add("selected");
+
+    btn.textContent = cardLabel(card);
+
+    btn.addEventListener("click", () => {
+        if (selected.has(card.id)) selected.delete(card.id);
+        else selected.add(card.id);
+        renderAll(lastState);
+    });
+
+    if (zone === "bottom") {
+        btn.classList.add("small");
+        const allow = lastState && lastState.phase === "bottom";
+        btn.disabled = !allow;
+    }
+
+    return btn;
+}
+
+// ===== card display helpers =====
+function suitEmoji(suit) {
+    switch (suit) {
+        case "H": return "♥️";
+        case "S": return "♠️";
+        case "D": return "♦️";
+        case "C": return "♣️";
+        default: return "?";
+    }
+}
+
+function cardColorClass(card) {
+    if (card.kind === "joker_big" || card.kind === "joker_small") {
+        return card.color === "red" ? "red" : "black";
+    }
+    return (card.suit === "H" || card.suit === "D") ? "red" : "black";
+}
+
+function cardLabel(card) {
+    if (card.kind === "joker_big") return "🃏大王";   // 大王
+    if (card.kind === "joker_small") return "🃟小王"; // 小王
+    return `${suitEmoji(card.suit)}${card.rank}`;
+}
+
+function findMySeatIndex(st) {
+    const uid = $("uid").value.trim();
+    for (let i = 0; i < 4; i++) {
+        if ((st.seats[i].uid || "") === uid) return i;
+    }
+    return -1;
+}
+
+// ===== bind buttons (no inline onclick) =====
+window.addEventListener("DOMContentLoaded", () => {
+    initUIRefs();
+    $("btnConnect").addEventListener("click", connect);
+    $("btnDisconnect").addEventListener("click", disconnect);
+
+    $("btnSit0").addEventListener("click", () => sit(0));
+    $("btnSit1").addEventListener("click", () => sit(1));
+    $("btnSit2").addEventListener("click", () => sit(2));
+    $("btnSit3").addEventListener("click", () => sit(3));
+    $("btnLeave").addEventListener("click", leaveSeat);
+
+    $("btnReady").addEventListener("click", ready);
+    $("btnUnready").addEventListener("click", unready);
+    $("btnStart").addEventListener("click", start);
+
+    $("btnCallTrump").addEventListener("click", actionCallTrump);
+    $("btnPass").addEventListener("click", callPass);
+    $("btnPutBottom").addEventListener("click", actionPutBottom);
+    $("btnClear").addEventListener("click", clearSelection);
+
+    renderAll(null);
+    setWSStatus();
+});

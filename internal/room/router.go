@@ -23,6 +23,16 @@ func ParseClientEvent(typ string, raw json.RawMessage) (game.ClientEventType, an
 		return game.EvUnready, struct{}{}, nil
 	case string(game.EvStart):
 		return game.EvStart, struct{}{}, nil
+
+	case string(game.EvCallPass):
+		return game.EvCallPass, struct{}{}, nil
+	case string(game.EvCallTrump):
+		var p game.CallTrumpPayload
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return "", nil, fmt.Errorf("bad_payload call_trump")
+		}
+		return game.EvCallTrump, p, nil
+		
 	default:
 		return "", nil, fmt.Errorf("unknown_event_type: %s", typ)
 	}
