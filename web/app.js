@@ -136,12 +136,16 @@ function updateActionAvailability(st) {
 
         // 坐家不参与跳过；其余三人未pass才能点
         const already = st.fightPassedSeats ? !!st.fightPassedSeats[mySeat] : false;
-        const canPass = seated && !isOwner && !already;
+        const canAct = seated && !isOwner && !already;
 
-        setDisabled(UI.btnPass, !canPass);
-        setPrimary(UI.btnPass, canPass);
+        setDisabled(UI.btnPass, !canAct);
+        setPrimary(UI.btnPass, canAct);
 
-        // 其余按钮先禁用（改主/攻主占位）
+        // 改主/攻主启用
+        $("btnChangeTrump").disabled = !canAct;
+        $("btnAttackTrump").disabled = !canAct;
+
+        // 其他禁用
         setDisabled(UI.btnCallTrump, true);
         setDisabled(UI.btnPutBottom, true);
         setDisabled(UI.btnReady, true);
@@ -373,7 +377,7 @@ function renderSeatBar(st) {
             badges.push("⚡可抢");
         }
         // starter 确定后标记
-        if (i === starter && starter >= 0) badges.push("⚡Starter");
+        if (i === starter && starter >= 0) badges.push("🎯先手");
         // ordered 模式才显示 👉
         if (st.phase === "call_trump" && mode === "ordered" && i === st.callTurnSeat) badges.push("👉");
         // bottom 阶段坐家
@@ -530,6 +534,54 @@ function findMySeatIndex(st) {
     return -1;
 }
 
+function actionChangeTrump() {
+    if (!lastState) return;
+    const st = lastState;
+    if (st.phase !== "trump_fight") return log("当前不在改主/攻主阶段");
+
+    const mySeat = findMySeatIndex(st);
+    if (mySeat < 0) return log("你还没坐下");
+    if (st.bottomOwnerSeat === mySeat) return log("坐家不能改主/攻主");
+
+    // 从右侧手牌选：1 joker + 2 level（同花色、同rank=本队级牌）
+    const hand = st.myHand || [];
+    const picked = hand.filter(c => selected.has(c.id));
+
+    const joker = picked.find(c => c.kind === "joker_big" || c.kind === "joker_small");
+    if (!joker) return log("改主需要选 1 张王");
+
+    const myTeam = st.seats[mySeat].team;
+    const myLevel = st.teams[myTeam].levelRank;
+
+    const levels = picked.filter(c => c.kind === "normal" && c.rank === myLevel);
+    if (levels.length !== 2) return log(`改主需要选 2 张本队级牌（rank=${myLevel}）`);
+
+    if (levels[0].suit !== levels[1].suit) return log("两张级牌必须同花色（同一 suit）");
+
+    send("game.change_trump", { jokerId: joker.id, levelIds: [levels[0].id, levels[1].id] });
+}
+
+function actionAttackTrump() {
+    if (!lastState) return;
+    const st = lastState;
+    if (st.phase !== "trump_fight") return log("当前不在改主/攻主阶段");
+
+    const mySeat = findMySeatIndex(st);
+    if (mySeat < 0) return log("你还没坐下");
+    if (st.bottomOwnerSeat === mySeat) return log("坐家不能改主/攻主");
+
+    // 选 2 张王，且同 kind
+    const hand = st.myHand || [];
+    const picked = hand.filter(c => selected.has(c.id));
+    const jokers = picked.filter(c => c.kind === "joker_big" || c.kind === "joker_small");
+    if (jokers.length !== 2) return log("攻主需要选 2 张王");
+
+    if (jokers[0].kind !== jokers[1].kind) return log("两张王必须同类型（大王对 或 小王对）");
+
+    send("game.attack_trump", { jokerIds: [jokers[0].id, jokers[1].id] });
+}
+
+
 // ===== bind buttons (no inline onclick) =====
 window.addEventListener("DOMContentLoaded", () => {
     initUIRefs();
@@ -550,6 +602,9 @@ window.addEventListener("DOMContentLoaded", () => {
     $("btnPass").addEventListener("click", callPass);
     $("btnPutBottom").addEventListener("click", actionPutBottom);
     $("btnClear").addEventListener("click", clearSelection);
+    $("btnChangeTrump").addEventListener("click", actionChangeTrump);
+    $("btnAttackTrump").addEventListener("click", actionAttackTrump);
+
 
     renderAll(null);
     setWSStatus();

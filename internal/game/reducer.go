@@ -215,38 +215,30 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 
 	case EvCallTrump:
 		p := payload.(CallTrumpPayload)
-		// 必须包含 jokerId + 1/2 张 levelIds
+		// 初步校验，必须包含手牌中的 jokerId + 1/2 张 levelIds
 		if p.JokerID < 0 || len(p.LevelIDs) == 0 {
 			return ReduceResult{State: st}, fmt.Errorf("缺少王牌/级牌")
 		}
-
 		hand := st.Seats[seat].Hand
 		joker, ok := findCardByID(hand, p.JokerID)
 		if !ok {
 			return ReduceResult{State: st}, fmt.Errorf("手牌中没有此王牌")
 		}
 		levelCards := make([]rules.Card, 0, len(p.LevelIDs))
-		seen := map[int]bool{}
 		for _, id := range p.LevelIDs {
-			if seen[id] {
-				return ReduceResult{State: st}, fmt.Errorf("级牌重复选择")
-			}
-			seen[id] = true
 			c, ok := findCardByID(hand, id)
 			if !ok {
 				return ReduceResult{State: st}, fmt.Errorf("手牌中没有此级牌")
 			}
 			levelCards = append(levelCards, c)
 		}
-
+		// 校验定主规则
 		team := st.Seats[seat].Team
 		teamLevel := st.Teams[team].LevelRank
-
 		trumpSuit, locked, err := rules.ValidateCallTrump(teamLevel, joker, levelCards)
 		if err != nil {
 			return ReduceResult{State: st}, err
 		}
-
 		// 定主成功：写入 TrumpState
 		st.Trump.HasTrumpSuit = true
 		st.Trump.Suit = trumpSuit
@@ -379,13 +371,81 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		st.FightPassMask |= bit
 		st.FightPassCount++
 		st.Version++
-		// 三位非坐家都跳过
+		// 其余三位都跳过
 		if st.FightPassCount >= 3 {
 			st.Phase = PhasePlayTrick
 			st.Version++
 			return ReduceResult{State: st, Changed: true, Notice: "无人继续改/攻主，进入出牌阶段"}, nil
 		}
 		return ReduceResult{State: st, Changed: true}, nil
+
+	case EvChangeTrump:
+		if st.Trump.Locked {
+			return ReduceResult{State: st}, fmt.Errorf("主家已锁定花色，不可以改主")
+		}
+		// 初步校验
+		p := payload.(ChangeTrumpPayload)
+		if p.JokerID <= 0 || len(p.LevelIDs) != 2 {
+			return ReduceResult{State: st}, fmt.Errorf("改主牌非法")
+		}
+		hand := st.Seats[seat].Hand
+		joker, ok := findCardByID(hand, p.JokerID)
+		if !ok {
+			return ReduceResult{State: st}, fmt.Errorf("改主牌非法")
+		}
+		c1, ok := findCardByID(hand, p.LevelIDs[0])
+		if !ok {
+			return ReduceResult{State: st}, fmt.Errorf("改主牌非法")
+		}
+		c2, ok := findCardByID(hand, p.LevelIDs[1])
+		if !ok {
+			return ReduceResult{State: st}, fmt.Errorf("改主牌非法")
+		}
+		// 改主规则校验
+		trumpSuit, err := rules.ValidateChangeTrump(st.Trump.LevelRank, joker, c1, c2)
+		if err != nil {
+			return ReduceResult{State: st}, err
+		}
+		// 改主成功：只改主花色，不改 LevelRank / StarterSeat
+		st.Trump.HasTrumpSuit = true
+		st.Trump.Suit = trumpSuit
+		sortAllHands(st)
+
+		// 改主者成为 bottomOwner，拿当前底牌并扣底
+		st = enterBottomPhase(st, seat)
+
+		return ReduceResult{State: st, Changed: true, Notice: "改主成功，变为花色" + string(st.Trump.Suit)}, nil
+
+	case EvAttackTrump:
+		p := payload.(AttackTrumpPayload)
+		if len(p.JokerIDs) != 2 {
+			return ReduceResult{State: st}, fmt.Errorf("攻主牌非法")
+		}
+		hand := st.Seats[seat].Hand
+		j1, ok := findCardByID(hand, p.JokerIDs[0])
+		if !ok {
+			return ReduceResult{State: st}, fmt.Errorf("攻主牌非法")
+		}
+		j2, ok := findCardByID(hand, p.JokerIDs[1])
+		if !ok {
+			return ReduceResult{State: st}, fmt.Errorf("攻主牌非法")
+		}
+		if j1.ID == j2.ID {
+			return ReduceResult{State: st}, fmt.Errorf("攻主牌重复")
+		}
+		if j1.Kind != j2.Kind || (j1.Kind != rules.KindJokerBig && j1.Kind != rules.KindJokerSmall) {
+			return ReduceResult{State: st}, fmt.Errorf("攻主牌非法")
+		}
+
+		// 攻主成功：进入硬主（只影响主花色体系），不改 LevelRank/StarterSeat
+		st.Trump.HasTrumpSuit = false
+		st.Trump.Suit = ""
+		sortAllHands(st)
+
+		// 攻主者成为 bottomOwner，拿底扣底
+		st = enterBottomPhase(st, seat)
+
+		return ReduceResult{State: st, Changed: true, Notice: "攻主成功，本小局硬主"}, nil
 
 	default:
 		return ReduceResult{State: st}, fmt.Errorf("phase_forbid: %s", typ)

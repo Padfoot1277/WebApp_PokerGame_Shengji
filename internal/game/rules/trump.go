@@ -12,14 +12,15 @@ func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit
 	if len(levelCards) != 1 && len(levelCards) != 2 {
 		return "", false, fmt.Errorf("级牌数量有误")
 	}
-
+	if len(levelCards) == 2 && levelCards[0].ID == levelCards[1].ID {
+		return "", false, fmt.Errorf("重复选择相同级牌")
+	}
 	// 级牌必须是本队级牌
 	for _, lc := range levelCards {
 		if lc.Kind != KindNormal || lc.Rank != teamLevel {
 			return "", false, fmt.Errorf("级牌选择有误，应为%s", string(teamLevel))
 		}
 	}
-
 	// 级牌花色必须一致（定主花色由级牌决定）
 	trumpSuit = levelCards[0].Suit
 	for _, lc := range levelCards[1:] {
@@ -27,7 +28,6 @@ func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit
 			return "", false, fmt.Errorf("级牌花色不一致")
 		}
 	}
-
 	// Joker + color constraint
 	if joker.Kind == KindJokerBig && !isRedSuit(trumpSuit) {
 		return "", false, fmt.Errorf("王和级牌颜色不一致")
@@ -35,10 +35,34 @@ func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit
 	if joker.Kind == KindJokerSmall && !isBlackSuit(trumpSuit) {
 		return "", false, fmt.Errorf("王和级牌颜色不一致")
 	}
-
 	// 锁主：同色王 + 一对级牌（len==2 且同花色自然成立）
 	if len(levelCards) == 2 {
 		locked = true
 	}
 	return trumpSuit, locked, nil
+}
+
+func ValidateChangeTrump(LevelRank Rank, joker Card, c1 Card, c2 Card) (trumpSuit Suit, err error) {
+	if c1.Kind != KindNormal || c2.Kind != KindNormal {
+		return "", fmt.Errorf("改主牌非法")
+	}
+	if c1.ID == c2.ID {
+		return "", fmt.Errorf("重复选择相同级牌")
+	}
+	if c1.Rank != LevelRank || c2.Rank != LevelRank {
+		return "", fmt.Errorf("改主牌非法")
+	}
+	if c1.Suit != c2.Suit {
+		return "", fmt.Errorf("改主牌非法")
+	}
+	if joker.Kind != KindJokerBig && joker.Kind != KindJokerSmall {
+		return "", fmt.Errorf("改主牌非法")
+	}
+	if joker.Color == Red && !(c1.Suit == Heart || c1.Suit == Diamond) {
+		return "", fmt.Errorf("改主牌非法")
+	}
+	if joker.Color == Black && !(c1.Suit == Spade || c1.Suit == Club) {
+		return "", fmt.Errorf("改主牌非法")
+	}
+	return c1.Suit, nil
 }
