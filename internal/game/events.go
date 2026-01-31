@@ -11,6 +11,7 @@ const (
 	EvStart     ClientEventType = "game.start"
 	EvCallTrump ClientEventType = "game.call_trump"
 	EvCallPass  ClientEventType = "game.call_pass"
+	EvPutBottom ClientEventType = "game.put_bottom"
 )
 
 type SitPayload struct {
@@ -22,4 +23,8 @@ type SitPayload struct {
 type CallTrumpPayload struct {
 	JokerID  int   `json:"jokerId"`
 	LevelIDs []int `json:"levelIds"` // len=1 or 2
+}
+
+type PutBottomPayload struct {
+	DiscardIDs []int `json:"discardIds"` // 必须正好8张，从33张手牌里选
 }

@@ -5,11 +5,12 @@ import "upgrade-lan/internal/game/rules"
 type Phase string
 
 const (
-	PhaseLobby     Phase = "lobby"
-	PhaseDealing   Phase = "dealing"
-	PhaseCallTrump Phase = "call_trump"
-	PhaseBottom    Phase = "bottom"
-	PhasePlayTrick Phase = "play_trick"
+	PhaseLobby      Phase = "lobby"
+	PhaseDealing    Phase = "dealing"
+	PhaseCallTrump  Phase = "call_trump"
+	PhaseBottom     Phase = "bottom"
+	PhaseTrumpFight Phase = "trump_fight"
+	PhasePlayTrick  Phase = "play_trick"
 )
 
 type SeatState struct {
@@ -59,6 +60,9 @@ type GameState struct {
 	StarterSeat     int `json:"starterSeat"`   // 本小局谁先定主（=NextStarterSeat）
 	CallTurnSeat    int `json:"callTurnSeat"`  // 当前轮到谁定主
 	CallPassCount   int `json:"callPassCount"` // 已pass次数（最多4）
+
+	FightPassMask  uint8 `json:"-"` // 改主攻主
+	FightPassCount int   `json:"fightPassCount"`
 
 	Trump TrumpState `json:"trump"`
 

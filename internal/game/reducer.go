@@ -22,11 +22,12 @@ func Reduce(st GameState, uid string, typ ClientEventType, payload any) (ReduceR
 	case PhaseCallTrump:
 		return reduceCallTrump(st, uid, typ, payload)
 	case PhaseBottom:
-		// 下一步你会加 put_bottom；目前先禁用
-		return ReduceResult{State: st, Changed: false}, fmt.Errorf("phase_forbid: %s", typ)
+		return reduceBottom(st, uid, typ, payload)
 	case PhasePlayTrick:
 		// 下一步出牌阶段再开放
 		return ReduceResult{State: st, Changed: false}, fmt.Errorf("phase_forbid: %s", typ)
+	case PhaseTrumpFight:
+		return reduceTrumpFight(st, uid, typ, payload)
 	default:
 		return ReduceResult{State: st, Changed: false}, fmt.Errorf("unknown_phase")
 	}
@@ -207,7 +208,7 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 			st.BottomOwnerSeat = -1
 			st.Phase = PhasePlayTrick
 			st.Version++
-			return ReduceResult{State: st, Changed: true, Notice: "hard_trump"}, nil
+			return ReduceResult{State: st, Changed: true, Notice: "硬主"}, nil
 		}
 
 		return ReduceResult{State: st, Changed: true}, nil
@@ -258,13 +259,135 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 		sortAllHands(st)
 
 		// 进入下一阶段：坐家收底牌、重扣底牌
-		st.BottomOwnerSeat = seat
-		st.Phase = PhaseBottom
-		st.Version++
+		st = enterBottomPhase(st, seat)
 		return ReduceResult{State: st, Changed: true,
-			Notice: "成功定主，级牌为" + string(st.Trump.LevelRank) + "，主牌为" + string(st.Trump.Suit)}, nil
+			Notice: "成功定主，级牌为" + string(st.Trump.LevelRank) + "，主牌为" + string(st.Trump.Suit) + "，请扣底牌",
+		}, nil
 
 	default:
 		return ReduceResult{State: st}, fmt.Errorf("非正常游戏阶段: %s", typ)
+	}
+}
+
+func enterBottomPhase(st GameState, ownerSeat int) GameState {
+	st.BottomOwnerSeat = ownerSeat
+
+	// 把底牌“复制”进坐家手牌 -> 33张
+	st.Seats[ownerSeat].Hand = append(st.Seats[ownerSeat].Hand, st.Bottom...)
+	st.Seats[ownerSeat].HandCount = len(st.Seats[ownerSeat].Hand) // 33
+	rules.SortHand(st.Seats[ownerSeat].Hand, rules.SortCtx{
+		LevelRank:    st.Trump.LevelRank,
+		HasTrumpSuit: st.Trump.HasTrumpSuit,
+		TrumpSuit:    st.Trump.Suit,
+	})
+
+	st.Phase = PhaseBottom
+	st.Version++
+	return st
+}
+
+func reduceBottom(st GameState, uid string, typ ClientEventType, payload any) (ReduceResult, error) {
+	seat, ok := seatIndexByUID(st, uid)
+	if !ok {
+		return ReduceResult{State: st}, fmt.Errorf("未确认座位号")
+	}
+	if seat != st.BottomOwnerSeat {
+		return ReduceResult{State: st}, fmt.Errorf("非底牌所有者")
+	}
+
+	switch typ {
+	case EvPutBottom:
+		p := payload.(PutBottomPayload)
+		if len(p.DiscardIDs) != 8 {
+			return ReduceResult{State: st}, fmt.Errorf("牌数错误，应为8张")
+		}
+		seen := map[int]bool{}
+		for _, id := range p.DiscardIDs {
+			if seen[id] {
+				return ReduceResult{State: st}, fmt.Errorf("不可重复选择牌")
+			}
+			seen[id] = true
+		}
+		// 校验这些牌都在坐家33张手牌里
+		hand := st.Seats[seat].Hand
+		inHand := map[int]rules.Card{}
+		for _, c := range hand {
+			inHand[c.ID] = c
+		}
+		newBottom := make([]rules.Card, 0, 8)
+		for _, id := range p.DiscardIDs {
+			c, ok := inHand[id]
+			if !ok {
+				return ReduceResult{State: st}, fmt.Errorf("所扣牌非法")
+			}
+			newBottom = append(newBottom, c)
+		}
+		// 从手牌移除这8张 -> 回到25
+		keep := make([]rules.Card, 0, len(hand)-8)
+		discardSet := seen
+		for _, c := range hand {
+			if discardSet[c.ID] {
+				continue
+			}
+			keep = append(keep, c)
+		}
+		if len(keep) != 25 {
+			return ReduceResult{State: st}, fmt.Errorf("扣牌处理错误，手牌不足25张")
+		}
+
+		st.Seats[seat].Hand = keep
+		st.Seats[seat].HandCount = 25
+
+		st.Bottom = newBottom
+		st.BottomCount = 8
+
+		// 扣底完成：进入改主/攻主窗口（PhaseTrumpFight）
+		st = enterTrumpFight(st)
+
+		return ReduceResult{State: st, Changed: true, Notice: "完成扣牌"}, nil
+
+	default:
+		return ReduceResult{State: st}, fmt.Errorf("phase_forbid: %s", typ)
+	}
+}
+
+func enterTrumpFight(st GameState) GameState {
+	st.FightPassMask = 0
+	st.FightPassCount = 0
+	st.Phase = PhaseTrumpFight
+	st.Version++
+	return st
+}
+
+func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any) (ReduceResult, error) {
+	seat, ok := seatIndexByUID(st, uid)
+	if !ok {
+		return ReduceResult{State: st}, fmt.Errorf("未确定座位")
+	}
+
+	// 坐家不能“跳过改主/攻主”，也不参与计数
+	if seat == st.BottomOwnerSeat {
+		return ReduceResult{State: st}, fmt.Errorf("phase_forbid: %s", typ)
+	}
+
+	switch typ {
+	case EvCallPass:
+		bit := uint8(1 << uint(seat))
+		if (st.FightPassMask & bit) != 0 {
+			return ReduceResult{State: st}, fmt.Errorf("已点击跳过")
+		}
+		st.FightPassMask |= bit
+		st.FightPassCount++
+		st.Version++
+		// 三位非坐家都跳过
+		if st.FightPassCount >= 3 {
+			st.Phase = PhasePlayTrick
+			st.Version++
+			return ReduceResult{State: st, Changed: true, Notice: "无人继续改/攻主，进入出牌阶段"}, nil
+		}
+		return ReduceResult{State: st, Changed: true}, nil
+
+	default:
+		return ReduceResult{State: st}, fmt.Errorf("phase_forbid: %s", typ)
 	}
 }

@@ -1,6 +1,8 @@
 let ws = null;
 let lastState = null;
 let UI = null;
+let lastPhase = null;
+let lastVersion = null;
 const selected = new Set();
 
 const $ = (id) => document.getElementById(id);
@@ -112,19 +114,39 @@ function updateActionAvailability(st) {
 
     // ---- bottom 阶段：只有坐家可以扣底（后端未实现也先按逻辑做）----
     if (st.phase === "bottom") {
-        setDisabled(UI.btnReady, true);
-        setDisabled(UI.btnUnready, true);
-        setDisabled(UI.btnStart, true);
-
-        const ownerSeat = (typeof st.bottomOwnerSeat === "number") ? st.bottomOwnerSeat : -1;
-        const isOwner = seated && (seat === ownerSeat);
-        const dealerSeat = (st.trump && typeof st.trump.callerSeat === "number") ? st.trump.callerSeat : -1;
+        const mySeat = mySeatIndex(st);
+        const seated = mySeat >= 0;
+        const isOwner = seated && (st.bottomOwnerSeat === mySeat);
 
         setDisabled(UI.btnPutBottom, !isOwner);
         setPrimary(UI.btnPutBottom, isOwner);
 
         setDisabled(UI.btnCallTrump, true);
         setDisabled(UI.btnPass, true);
+        setDisabled(UI.btnReady, true);
+        setDisabled(UI.btnUnready, true);
+        setDisabled(UI.btnStart, true);
+        return;
+    }
+
+    if (st.phase === "trump_fight") {
+        const mySeat = mySeatIndex(st);
+        const seated = mySeat >= 0;
+        const isOwner = seated && (st.bottomOwnerSeat === mySeat);
+
+        // 坐家不参与跳过；其余三人未pass才能点
+        const already = st.fightPassedSeats ? !!st.fightPassedSeats[mySeat] : false;
+        const canPass = seated && !isOwner && !already;
+
+        setDisabled(UI.btnPass, !canPass);
+        setPrimary(UI.btnPass, canPass);
+
+        // 其余按钮先禁用（改主/攻主占位）
+        setDisabled(UI.btnCallTrump, true);
+        setDisabled(UI.btnPutBottom, true);
+        setDisabled(UI.btnReady, true);
+        setDisabled(UI.btnUnready, true);
+        setDisabled(UI.btnStart, true);
         return;
     }
 
@@ -174,10 +196,48 @@ function connect() {
         setWSStatus();
         log("[ws] error");
     };
+    // ws.onmessage = (e) => {
+    //     // 1) 先把原始帧打印出来（非常关键）
+    //     log(`[recv raw] ${e.data}`);
+    //
+    //     let msg = null;
+    //     try { msg = JSON.parse(e.data); }
+    //     catch { return; }
+    //
+    //     // 2) 兼容不同后端消息形状
+    //     const t = msg.type || msg.t || msg.kind;
+    //
+    //     if (t === "snapshot" || msg.state) {
+    //         lastState = msg.state || msg;
+    //         renderAll(lastState);
+    //         return;
+    //     }
+    //
+    //     if (t === "error" || t === "err" || msg.code || msg.message || msg.msg) {
+    //         const code = msg.code || "ERR";
+    //         const message = msg.message || msg.msg || JSON.stringify(msg);
+    //         log(`[error] ${code}: ${message}`);
+    //         return;
+    //     }
+    //
+    //     log(`[recv] ${JSON.stringify(msg)}`);
+    // };
+
     ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
         if (msg.type === "snapshot") {
-            lastState = msg.state;
+            const st = msg.state;
+
+            // 只在阶段切换时清空勾选
+            if (lastPhase !== null && st.phase !== lastPhase) {
+                selected.clear();
+                log(`[ui] phase changed ${lastPhase} -> ${st.phase}, clear selection`);
+            }
+
+            // 可选：记录 version 变化
+            lastVersion = st.version;
+            lastPhase = st.phase;
+            lastState = st;
             renderAll(lastState);
         } else if (msg.type === "error") {
             log(`[error] ${msg.code}: ${msg.message}`);
@@ -242,8 +302,26 @@ function actionCallTrump() {
 }
 
 function actionPutBottom() {
-    log("扣底：后端尚未实现 put_bottom（目前会被 reject）");
-    // send("game.put_bottom", { ... })
+    if (!lastState) return;
+    const st = lastState;
+
+    if (st.phase !== "bottom") return log("当前不在扣底阶段");
+    const mySeat = findMySeatIndex(st);
+    if (mySeat < 0) return log("你还没坐下");
+    if (st.bottomOwnerSeat !== mySeat) return log("你不是坐家，不能扣底");
+
+    // 只能从右侧手牌区选牌
+    const hand = st.myHand || [];
+    const selectedIds = hand.filter(c => selected.has(c.id)).map(c => c.id);
+
+    if (selectedIds.length !== 8) {
+        return log(`扣底需要选中 8 张牌，当前选中=${selectedIds.length}`);
+    }
+
+    send("game.put_bottom", { discardIds: selectedIds });
+    // 提交后清空
+    selected.clear();
+    renderAll(lastState);
 }
 
 function clearSelection() {
@@ -304,6 +382,9 @@ function renderSeatBar(st) {
         if (i === me) badges.push("🟦");
         // 已pass
         if (st.phase === "call_trump" && st.callPassedSeats && st.callPassedSeats[i]) badges.push("⛔pass");
+        if (st.phase === "bottom" && i === st.bottomOwnerSeat) badges.push("🟨扣底中");
+        if (st.phase === "trump_fight" && i !== st.bottomOwnerSeat) badges.push("⛳攻改窗口");
+        if (st.phase === "trump_fight" && st.fightPassedSeats && st.fightPassedSeats[i]) badges.push("⛔跳过");
 
         const uid = s.uid || "(empty)";
         const online = !!s.online;
@@ -409,8 +490,9 @@ function makeCardButton(card, zone) {
 
     if (zone === "bottom") {
         btn.classList.add("small");
-        const allow = lastState && lastState.phase === "bottom";
-        btn.disabled = !allow;
+        btn.disabled = true;       // 永远只展示
+        btn.onclick = null;        // 不允许选中
+        return btn;
     }
 
     return btn;

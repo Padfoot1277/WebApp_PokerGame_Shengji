@@ -29,10 +29,17 @@ func ParseClientEvent(typ string, raw json.RawMessage) (game.ClientEventType, an
 	case string(game.EvCallTrump):
 		var p game.CallTrumpPayload
 		if err := json.Unmarshal(raw, &p); err != nil {
-			return "", nil, fmt.Errorf("bad_payload call_trump")
+			return "", nil, fmt.Errorf("定主请求错误")
 		}
 		return game.EvCallTrump, p, nil
-		
+
+	case string(game.EvPutBottom):
+		var p game.PutBottomPayload
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return "", nil, fmt.Errorf("扣底请求错误")
+		}
+		return game.EvPutBottom, p, nil
+
 	default:
 		return "", nil, fmt.Errorf("unknown_event_type: %s", typ)
 	}

@@ -18,10 +18,14 @@ type ViewState struct {
 	CallMode        CallMode `json:"callMode"`
 	CallPassedSeats [4]bool  `json:"callPassedSeats"` // 哪些座位已pass
 
-	StarterSeat   int        `json:"starterSeat"`
-	CallTurnSeat  int        `json:"callTurnSeat"`
-	CallPassCount int        `json:"callPassCount"`
-	Trump         TrumpState `json:"trump"`
+	StarterSeat   int `json:"starterSeat"`
+	CallTurnSeat  int `json:"callTurnSeat"`
+	CallPassCount int `json:"callPassCount"`
+
+	FightPassedSeats [4]bool `json:"fightPassedSeats"`
+	FightPassCount   int     `json:"fightPassCount"`
+
+	Trump TrumpState `json:"trump"`
 
 	BottomOwnerSeat int `json:"bottomOwnerSeat"`
 
@@ -73,9 +77,13 @@ func MakeView(st GameState, uid string) ViewState {
 	}
 
 	passed := [4]bool{}
+	fightPassed := [4]bool{}
 	for i := 0; i < 4; i++ {
 		if (st.CallPassMask & (1 << uint(i))) != 0 {
 			passed[i] = true
+		}
+		if (st.FightPassMask & (1 << uint(i))) != 0 {
+			fightPassed[i] = true
 		}
 	}
 
@@ -101,7 +109,10 @@ func MakeView(st GameState, uid string) ViewState {
 		StarterSeat:   st.StarterSeat,
 		CallTurnSeat:  st.CallTurnSeat,
 		CallPassCount: st.CallPassCount,
-		Trump:         st.Trump,
+
+		FightPassedSeats: fightPassed,
+		FightPassCount:   st.FightPassCount,
+		Trump:            st.Trump,
 
 		BottomOwnerSeat: st.BottomOwnerSeat,
 
