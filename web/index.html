@@ -1,0 +1,46 @@
+<!doctype html>
+<html>
+<head>
+    <meta charset="utf-8"/>
+    <title>升级 LAN Demo</title>
+    <style>
+        body { font-family: sans-serif; margin: 16px; }
+        .row { display:flex; gap:12px; }
+        .card { border:1px solid #ccc; padding:12px; width: 220px; }
+        button { margin: 4px 0; width: 100%; }
+        pre { background:#f6f6f6; padding:10px; overflow:auto; }
+    </style>
+</head>
+<body>
+<h2>升级 - 房间骨架（Lobby/Ready/Start）</h2>
+
+<div class="row">
+    <div class="card">
+        <div><b>连接</b></div>
+        <div>UID: <input id="uid" value="u1"/></div>
+        <div>Room: <input id="room" value="default"/></div>
+        <button id="btnConnect">Connect</button>
+        <button id="btnDisconnect">Disconnect</button>
+        <hr/>
+        <div><b>我的操作</b></div>
+        <button onclick="sit(0)">Sit seat 0</button>
+        <button onclick="sit(1)">Sit seat 1</button>
+        <button onclick="sit(2)">Sit seat 2</button>
+        <button onclick="sit(3)">Sit seat 3</button>
+        <button onclick="leaveSeat()">Leave seat</button>
+        <button onclick="ready()">Ready</button>
+        <button onclick="unready()">Unready</button>
+        <button onclick="start()">Start (manual)</button>
+    </div>
+
+    <div class="card" style="flex:1;">
+        <div><b>Snapshot</b></div>
+        <pre id="snapshot">{}</pre>
+        <div><b>Log</b></div>
+        <pre id="log"></pre>
+    </div>
+</div>
+
+<script src="./app.js"></script>
+</body>
+</html>
