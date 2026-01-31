@@ -2,6 +2,7 @@ package room
 
 import (
 	"encoding/json"
+	"upgrade-lan/internal/game/rules"
 
 	"upgrade-lan/internal/game"
 	"upgrade-lan/internal/transport"
@@ -25,16 +26,25 @@ type Room struct {
 }
 
 func NewRoom(id string) *Room {
+	st := game.GameState{
+		RoomID: id,
+		Phase:  game.PhaseLobby,
+	}
+	// 初始化座位所属队伍
+	for i := 0; i < 4; i++ {
+		st.Seats[i].Team = game.TeamOfSeat(i)
+	}
+	// 初始化双方级牌 = 2
+	st.Teams[0].LevelRank = rules.R2
+	st.Teams[1].LevelRank = rules.R2
+
 	return &Room{
 		id:    id,
 		join:  make(chan transport.Client, 32),
 		leave: make(chan transport.Client, 32),
 		inbox: make(chan incoming, 128),
 		conns: make(map[transport.Client]struct{}),
-		state: game.GameState{
-			RoomID: id,
-			Phase:  game.PhaseLobby,
-		},
+		state: st,
 	}
 }
 
@@ -94,8 +104,9 @@ func (r *Room) handleEvent(c transport.Client, typ string, raw json.RawMessage) 
 }
 
 func (r *Room) broadcastSnapshot() {
-	snap := game.Snapshot{Type: "snapshot", State: r.state}
 	for c := range r.conns {
+		view := game.MakeView(r.state, c.UID())
+		snap := game.Snapshot{Type: "snapshot", State: view}
 		_ = c.SendJSON(snap)
 	}
 }

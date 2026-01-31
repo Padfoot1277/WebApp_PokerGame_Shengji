@@ -16,6 +16,7 @@ function connect() {
         const msg = JSON.parse(e.data);
         if (msg.type === "snapshot") {
             $("snapshot").textContent = JSON.stringify(msg.state, null, 2);
+            log(`phase=${msg.state.phase} myHand=${(msg.state.myHand||[]).length} bottomCount=${msg.state.bottomCount}`);
         } else if (msg.type === "error") {
             log(`[error] ${msg.code}: ${msg.message}`);
         } else {

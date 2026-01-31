@@ -1,6 +1,9 @@
 package game
 
-import "fmt"
+import (
+	"fmt"
+	"upgrade-lan/internal/game/rules"
+)
 
 type ReduceResult struct {
 	State   GameState
@@ -61,12 +64,12 @@ func reduceLobby(st GameState, uid string, typ ClientEventType, payload any) (Re
 				st.Seats[i].Ready = wantReady
 				st.Version++
 				rr := ReduceResult{State: st, Changed: true}
+
 				// 自动 start：4 人都 ready
 				if allReady(st) {
-					st.Phase = PhaseDealing
-					st.Version++
+					st = startDeal(st)
 					rr.State = st
-					rr.Notice = "all_ready_start"
+					rr.Notice = "所有人已准备，已发牌"
 				}
 				return rr, nil
 			}
@@ -78,9 +81,8 @@ func reduceLobby(st GameState, uid string, typ ClientEventType, payload any) (Re
 		if !allReady(st) {
 			return ReduceResult{State: st}, fmt.Errorf("not_all_ready")
 		}
-		st.Phase = PhaseDealing
-		st.Version++
-		return ReduceResult{State: st, Changed: true, Notice: "manual_start"}, nil
+		st = startDeal(st)
+		return ReduceResult{State: st, Changed: true, Notice: "manual_deal"}, nil
 
 	default:
 		return ReduceResult{State: st}, fmt.Errorf("unknown_event")
@@ -94,4 +96,42 @@ func allReady(st GameState) bool {
 		}
 	}
 	return true
+}
+
+func startDeal(st GameState) GameState {
+	// 进入dealing
+	st.Phase = PhaseDealing
+	st.Version++
+
+	// 生成两副牌并洗牌
+	deck := rules.NewDoubleDeck()
+	rules.ShuffleInPlace(deck)
+
+	// 发 25*4 + 8底牌
+	hands, bottom := rules.Deal25PlusBottom8(deck)
+
+	// 写入座位手牌
+	for i := 0; i < 4; i++ {
+		st.Seats[i].Hand = hands[i]
+		st.Seats[i].HandCount = len(hands[i]) // 25
+
+		team := st.Seats[i].Team
+		level := st.Teams[team].LevelRank
+
+		// 发牌阶段：先按“本队级牌 + 无主花色”排序，便于判断能否定主
+		rules.SortHand(st.Seats[i].Hand, rules.SortCtx{
+			LevelRank:    level,
+			HasTrumpSuit: false,
+		})
+	}
+
+	// 写入底牌
+	st.Bottom = bottom
+	st.BottomCount = len(bottom) // 8
+
+	// 发牌结束后进入下一阶段（定主）
+	st.Phase = PhaseCallTrump
+	st.Version++
+
+	return st
 }
