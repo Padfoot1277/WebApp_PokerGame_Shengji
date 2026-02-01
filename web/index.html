@@ -14,7 +14,18 @@
         .seatCard.me { border-color: #4c9ffe; box-shadow: 0 0 0 2px rgba(76,159,254,.15); }
         .seatCard.turn { border-color: #f5a623; box-shadow: 0 0 0 2px rgba(245,166,35,.15); }
         .seatCard.owner { border-color: #34c759; box-shadow: 0 0 0 2px rgba(52,199,89,.15); }
-
+        .hint{margin:10px 0;padding:10px;border-radius:10px;background:#f3f4f6}
+        .panel{margin-top:12px;padding:12px;border:1px solid #e5e7eb;border-radius:12px}
+        .panelTitle{display:flex;gap:10px;align-items:center}
+        .badge{font-size:12px;padding:2px 8px;border-radius:999px;background:#eef2ff}
+        .banner{margin-top:10px;padding:10px;border-radius:10px;font-weight:600}
+        .banner.danger{background:#fee2e2;color:#991b1b}
+        .hidden{display:none}
+        .row{display:flex;gap:16px;margin-top:10px}
+        .col{flex:1}
+        .subTitle{font-size:12px;color:#6b7280;margin-bottom:6px}
+        .cardsRow{display:flex;flex-wrap:wrap;gap:6px}
+        .muted{opacity:0.55}
         .seatTop { display:flex; justify-content:space-between; align-items:center; }
         .seatBadges { display:flex; gap:6px; align-items:center; font-size: 14px; }
         .badge { padding: 2px 8px; border-radius: 999px; border: 1px solid #ddd; background:#fafafa; font-size: 12px; }
@@ -131,7 +142,7 @@
     <div><b>座位</b>（👉=轮到定主 / 🟨=坐家(扣底) / 🟦=你）</div>
     <div id="seatBar" style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;"></div>
 </div>
-
+<div id="turnHint" class="hint"></div>
 
 <div class="row" style="margin-top:12px;">
     <div class="panel" style="flex:1; min-width: 360px;">

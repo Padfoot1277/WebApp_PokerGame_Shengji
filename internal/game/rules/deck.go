@@ -28,9 +28,9 @@ func NewDoubleDeck() []Card {
 			}
 		}
 		// 每副：大王、小王各一张（这里用 Color 区分红/黑仅作为显示）
-		deck = append(deck, Card{ID: id, Kind: KindJokerBig, Color: Red})
+		deck = append(deck, Card{ID: id, Kind: KindJokerSmall, Color: Black, Rank: RSJ})
 		id++
-		deck = append(deck, Card{ID: id, Kind: KindJokerSmall, Color: Black})
+		deck = append(deck, Card{ID: id, Kind: KindJokerBig, Color: Red, Rank: RBJ})
 		id++
 	}
 	// 总数应为108

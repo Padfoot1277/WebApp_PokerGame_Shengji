@@ -53,7 +53,14 @@ func ParseClientEvent(typ string, raw json.RawMessage) (game.ClientEventType, an
 			return "", nil, fmt.Errorf("攻主请求错误")
 		}
 		return game.EvAttackTrump, p, nil
-		
+
+	case string(game.EvPlayCards):
+		var p game.PlayCardsPayload
+		if err := json.Unmarshal(raw, &p); err != nil {
+			return "", nil, fmt.Errorf("出牌请求错误")
+		}
+		return game.EvPlayCards, p, nil
+
 	default:
 		return "", nil, fmt.Errorf("unknown_event_type: %s", typ)
 	}

@@ -76,6 +76,10 @@ func (r *Room) Run() {
 					r.state.Seats[i].Online = true
 				}
 			}
+			c.SendJSON(map[string]any{
+				"type": "hello",
+				"uid":  c.UID(),
+			})
 			r.broadcastSnapshot()
 
 		case c := <-r.leave:

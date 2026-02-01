@@ -34,6 +34,20 @@ type Conn struct {
 	roomID string
 }
 
+type HelloMsg struct {
+	Type string `json:"type"`
+	UID  string `json:"uid"`
+}
+
+func (c *Conn) sendHello() {
+	msg := HelloMsg{
+		Type: "hello",
+		UID:  c.uid,
+	}
+	b, _ := json.Marshal(msg)
+	c.send <- b
+}
+
 func (c *Conn) UID() string    { return c.uid }
 func (c *Conn) RoomID() string { return c.roomID }
 

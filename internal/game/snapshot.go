@@ -29,8 +29,11 @@ type ViewState struct {
 
 	BottomOwnerSeat int `json:"bottomOwnerSeat"`
 
+	MySeat   int          `json:"mySeat"`
 	MyBottom []rules.Card `json:"myBottom"` // 仅在 PhaseBottom 本人可见
 	MyHand   []rules.Card `json:"myHand"`   // 只给本人
+
+	Trick TrickState `json:"trick"`
 }
 
 type SeatView struct {
@@ -95,6 +98,14 @@ func MakeView(st GameState, uid string) ViewState {
 		}
 	}
 
+	mySeat := -1
+	for i := 0; i < 4; i++ {
+		if st.Seats[i].UID == uid { // 注意字段名对齐
+			mySeat = i
+			break
+		}
+	}
+
 	return ViewState{
 		RoomID:  st.RoomID,
 		Phase:   st.Phase,
@@ -116,7 +127,10 @@ func MakeView(st GameState, uid string) ViewState {
 
 		BottomOwnerSeat: st.BottomOwnerSeat,
 
+		MySeat:   mySeat,
 		MyBottom: myBottom,
 		MyHand:   myHand,
+
+		Trick: st.Trick,
 	}
 }

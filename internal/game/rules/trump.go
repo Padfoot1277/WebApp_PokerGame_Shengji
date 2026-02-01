@@ -2,10 +2,7 @@ package rules
 
 import "fmt"
 
-func isRedSuit(s Suit) bool   { return s == Heart || s == Diamond }
-func isBlackSuit(s Suit) bool { return s == Spade || s == Club }
-
-// 定主条件：
+// ValidateCallTrump 定主条件：
 // 红主：红大王 + 红色级牌（♥/♦）
 // 黑主：黑小王 + 黑色级牌（♠/♣）
 func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit Suit, locked bool, err error) {
@@ -17,7 +14,7 @@ func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit
 	}
 	// 级牌必须是本队级牌
 	for _, lc := range levelCards {
-		if lc.Kind != KindNormal || lc.Rank != teamLevel {
+		if !isNormal(lc) || lc.Rank != teamLevel {
 			return "", false, fmt.Errorf("级牌选择有误，应为%s", string(teamLevel))
 		}
 	}
@@ -29,10 +26,10 @@ func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit
 		}
 	}
 	// Joker + color constraint
-	if joker.Kind == KindJokerBig && !isRedSuit(trumpSuit) {
+	if isBigJoker(joker) && !isRedSuit(trumpSuit) {
 		return "", false, fmt.Errorf("王和级牌颜色不一致")
 	}
-	if joker.Kind == KindJokerSmall && !isBlackSuit(trumpSuit) {
+	if isSmallJoker(joker) && !isBlackSuit(trumpSuit) {
 		return "", false, fmt.Errorf("王和级牌颜色不一致")
 	}
 	// 锁主：同色王 + 一对级牌（len==2 且同花色自然成立）
@@ -43,7 +40,7 @@ func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit
 }
 
 func ValidateChangeTrump(LevelRank Rank, joker Card, c1 Card, c2 Card) (trumpSuit Suit, err error) {
-	if c1.Kind != KindNormal || c2.Kind != KindNormal {
+	if !isNormal(c1) || !isNormal(c2) {
 		return "", fmt.Errorf("改主牌非法")
 	}
 	if c1.ID == c2.ID {
@@ -55,7 +52,7 @@ func ValidateChangeTrump(LevelRank Rank, joker Card, c1 Card, c2 Card) (trumpSui
 	if c1.Suit != c2.Suit {
 		return "", fmt.Errorf("改主牌非法")
 	}
-	if joker.Kind != KindJokerBig && joker.Kind != KindJokerSmall {
+	if !isBigJoker(joker) && !isSmallJoker(joker) {
 		return "", fmt.Errorf("改主牌非法")
 	}
 	if joker.Color == Red && !(c1.Suit == Heart || c1.Suit == Diamond) {
@@ -65,4 +62,14 @@ func ValidateChangeTrump(LevelRank Rank, joker Card, c1 Card, c2 Card) (trumpSui
 		return "", fmt.Errorf("改主牌非法")
 	}
 	return c1.Suit, nil
+}
+
+func ValidateAttackTrump(j1 Card, j2 Card) (err error) {
+	if j1.ID == j2.ID {
+		return fmt.Errorf("攻主牌重复")
+	}
+	if j1.Kind != j2.Kind || (!isBigJoker(j1) && !isSmallJoker(j1)) {
+		return fmt.Errorf("攻主牌非法")
+	}
+	return nil
 }

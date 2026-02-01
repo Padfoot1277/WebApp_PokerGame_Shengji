@@ -15,6 +15,8 @@ const (
 	EvPutBottom   ClientEventType = "game.put_bottom"
 	EvChangeTrump ClientEventType = "game.change_trump"
 	EvAttackTrump ClientEventType = "game.attack_trump"
+
+	EvPlayCards ClientEventType = "game.play_cards"
 )
 
 type SitPayload struct {
@@ -39,4 +41,8 @@ type ChangeTrumpPayload struct {
 
 type AttackTrumpPayload struct {
 	JokerIDs []int `json:"jokerIds"` // 必须2张：同 kind（big/big 或 small/small）
+}
+
+type PlayCardsPayload struct {
+	CardIDs []int `json:"cardIds"`
 }

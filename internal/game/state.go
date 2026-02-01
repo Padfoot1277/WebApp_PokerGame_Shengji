@@ -28,12 +28,9 @@ type TeamState struct {
 }
 
 type TrumpState struct {
-	HasTrumpSuit bool       `json:"hasTrumpSuit"`
-	Suit         rules.Suit `json:"suit,omitempty"` // HasTrumpSuit=true 时有效
-
-	LevelRank  rules.Rank `json:"levelRank"`  // 本小局最终级牌（=坐家级数）；硬主时也可填入“本小局先手所在组级牌”作为展示用
-	Locked     bool       `json:"locked"`     // 同色王 + 一对级牌 -> 锁主
-	CallerSeat int        `json:"callerSeat"` // -1 表示无人定主（硬主）
+	rules.Trump
+	Locked     bool `json:"locked"`     // 同色王 + 一对级牌 -> 锁主
+	CallerSeat int  `json:"callerSeat"` // -1 表示无人定主（硬主）
 }
 
 type CallMode string
@@ -42,6 +39,36 @@ const (
 	CallModeRace    CallMode = "race"    // 抢定主（仅用于第一小局）
 	CallModeOrdered CallMode = "ordered" // 按序定主
 )
+
+type Move struct {
+	Blocks  [][]rules.Block `json:"blocks"`    // 牌型（每种牌型合为一组，组内按牌级降序排序，用于判断牌力大小）
+	CardIDs []int           `json:"actualIds"` // 出牌ID
+	Cards   []rules.Card    `json:"cards"`     // 出牌
+}
+
+type LeadMove struct {
+	Seat       int             `json:"seat"` // 进入 PhasePlayTrick 时初始化为-1，表示未出牌，便于前端判断
+	SuitClass  rules.SuitClass `json:"suitClass"`
+	IsThrow    bool            `json:"isThrow"`    // 玩家原意是否甩牌
+	ThrowOK    bool            `json:"throwOk"`    // 甩牌是否成功（true=保留；false=裁剪）
+	IntentMove Move            `json:"intentMove"` // 原出牌意图
+	ActualMove Move            `json:"actualMove"` // 最终出牌
+	Info       string          `json:"info"`       // throw_failed_by_xxx 等调试信息
+}
+
+type FollowMove struct {
+	Seat      int             `json:"seat"`       // 进入 PhasePlayTrick 时初始化为-1，表示未出牌，便于前端判断
+	SuitClass rules.SuitClass `json:"suitClass"`  // 若跟牌牌域不一致，则SuitClass = "Mix"，不可参与回合结算
+	Move      Move            `json:"followMove"` // 跟牌
+	Info      string          `json:"info"`       // 调试信息
+}
+
+type TrickState struct {
+	LeaderSeat int           `json:"leaderSeat"` // 本回合先手
+	TurnSeat   int           `json:"turnSeat"`   // 当前轮到谁
+	Lead       LeadMove      `json:"lead"`
+	Follows    [3]FollowMove `json:"follows"` // 每座位本回合实际出的牌（未出牌则 CardIDs 为空）
+}
 
 type GameState struct {
 	RoomID  string `json:"roomId"`
@@ -70,6 +97,9 @@ type GameState struct {
 	BottomCount     int          `json:"bottomCount"`
 	Bottom          []rules.Card `json:"-"`
 	BottomOwnerSeat int          `json:"bottomOwnerSeat"`
+
+	// ---- 回合 ----
+	Trick TrickState `json:"trick"`
 }
 
 // TeamOfSeat seat0&2 -> team0; seat1&3 -> team1

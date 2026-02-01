@@ -3,6 +3,8 @@ let lastState = null;
 let UI = null;
 let lastPhase = null;
 let lastVersion = null;
+let MY_UID = null;
+
 const selected = new Set();
 
 const $ = (id) => document.getElementById(id);
@@ -32,11 +34,12 @@ function setDisabled(btn, on) {
 
 function mySeatIndex(st) {
     if (!st) return -1;
-    const uid = $("uid").value.trim();
-    for (let i = 0; i < 4; i++) {
-        if ((st.seats[i].uid || "") === uid) return i;
+    const uid = window.myUID;
+    if (!uid || !st?.seats) return getMyUID();
+    for (let i = 0; i < st.seats.length; i++) {
+        if (st.seats[i]?.uid === uid) return i;
     }
-    return -1;
+    return getMyUID();
 }
 
 function mySeatReady(st, seat) {
@@ -154,6 +157,30 @@ function updateActionAvailability(st) {
         return;
     }
 
+    if (st.phase === "play_trick") {
+        const mySeat = mySeatIndex(st);
+        const canPlay = (mySeat === st.trick.leaderSeat) && (mySeat === st.trick.turnSeat) && !leadPlayed(st);
+
+        // 出牌按钮
+        const btnPlay = document.getElementById("btnPlay");
+        if (btnPlay) {
+            btnPlay.disabled = !canPlay;
+            setPrimary(btnPlay, canPlay);
+            btnPlay.textContent = canPlay ? "先手出牌" : "出牌";
+        }
+
+        // 清空/其他按钮（你可按需）
+        setDisabled(UI.btnCallTrump, true);
+        setDisabled(UI.btnPutBottom, true);
+        setDisabled(UI.btnPass, true);
+
+        // 允许“清空选择”始终可点
+        const btnClear = document.getElementById("btnClear");
+        if (btnClear) btnClear.disabled = false;
+
+        return;
+    }
+
     // ---- 其他阶段：都禁用（后续做出牌再开放）----
     setDisabled(UI.btnReady, true);
     setDisabled(UI.btnUnready, true);
@@ -200,49 +227,33 @@ function connect() {
         setWSStatus();
         log("[ws] error");
     };
-    // ws.onmessage = (e) => {
-    //     // 1) 先把原始帧打印出来（非常关键）
-    //     log(`[recv raw] ${e.data}`);
-    //
-    //     let msg = null;
-    //     try { msg = JSON.parse(e.data); }
-    //     catch { return; }
-    //
-    //     // 2) 兼容不同后端消息形状
-    //     const t = msg.type || msg.t || msg.kind;
-    //
-    //     if (t === "snapshot" || msg.state) {
-    //         lastState = msg.state || msg;
-    //         renderAll(lastState);
-    //         return;
-    //     }
-    //
-    //     if (t === "error" || t === "err" || msg.code || msg.message || msg.msg) {
-    //         const code = msg.code || "ERR";
-    //         const message = msg.message || msg.msg || JSON.stringify(msg);
-    //         log(`[error] ${code}: ${message}`);
-    //         return;
-    //     }
-    //
-    //     log(`[recv] ${JSON.stringify(msg)}`);
-    // };
 
     ws.onmessage = (e) => {
         const msg = JSON.parse(e.data);
+        if (msg.type === "hello") {
+            window.myUID = msg.uid;
+            console.log("[hello] myUID =", window.myUID);
+            setMyUID(msg.uid);
+            return;
+        }
         if (msg.type === "snapshot") {
             const st = msg.state;
+            const phaseChanged = (lastPhase !== null && st.phase !== lastPhase);
+            const leadBecameSet =
+                lastState &&
+                lastState.trick && !lastState.trick.lead &&
+                st.trick && st.trick.lead;
 
-            // 只在阶段切换时清空勾选
-            if (lastPhase !== null && st.phase !== lastPhase) {
+            // 只在完成某一步骤后清空勾选
+            if (phaseChanged || leadBecameSet) {
                 selected.clear();
-                log(`[ui] phase changed ${lastPhase} -> ${st.phase}, clear selection`);
+                log(`[ui] clear selection (phaseChanged=${phaseChanged}, leadBecameSet=${leadBecameSet})`);
             }
-
-            // 可选：记录 version 变化
             lastVersion = st.version;
             lastPhase = st.phase;
             lastState = st;
-            renderAll(lastState);
+            renderAll(st);
+
         } else if (msg.type === "error") {
             log(`[error] ${msg.code}: ${msg.message}`);
         } else {
@@ -342,74 +353,131 @@ function renderAll(st) {
 }
 
 function renderSeatBar(st) {
-    const el = $("seatBar");
-    if (!el) return;
+    const bar = document.getElementById("seatBar");
+    if (!bar) return;
+    bar.innerHTML = "";
+    if (!st || !st.seats) return;
 
-    el.innerHTML = "";
-    if (!st) return;
+    const mySeat = mySeatIndex(st);
+    const phase = st.phase;
 
-    const mode = st.callMode; // "race" | "ordered"
-    const starter = (typeof st.starterSeat === "number") ? st.starterSeat : -1;
+    const trick = st.trick;
+    const playsBySeat = buildPlaysBySeat(trick);
 
-
-    const me = findMySeatIndex(st);
-    const turn = (typeof st.callTurnSeat === "number") ? st.callTurnSeat : -1;
-    const owner = (typeof st.bottomOwnerSeat === "number") ? st.bottomOwnerSeat : -1;
-
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < st.seats.length; i++) {
         const s = st.seats[i];
+
+        // 外层卡片
         const card = document.createElement("div");
-        card.className = "seatCard";
+        card.style.border = "1px solid #e5e7eb";
+        card.style.borderRadius = "12px";
+        card.style.padding = "10px";
+        card.style.minWidth = "220px";
 
-        if (i === me) card.classList.add("me");
+        // 顶部标题行：Seat + badges
+        const title = document.createElement("div");
+        title.style.display = "flex";
+        title.style.alignItems = "center";
+        title.style.justifyContent = "space-between";
 
-        if (st.phase === "call_trump") {
-            if (mode === "ordered" && i === st.callTurnSeat) card.classList.add("turn");
-            // race 模式可选：让所有“未pass的坐下玩家”有淡黄色边框，或者只强调“可抢”
-            if (mode === "race" && starter < 0 && s.uid) card.classList.add("turn");
+        const left = document.createElement("div");
+        left.innerHTML = `<b>Seat ${i}</b> ${s.uid ? "" : "(空)"}`;
+
+        const badges = document.createElement("div");
+        badges.style.display = "flex";
+        badges.style.gap = "6px";
+        badges.style.flexWrap = "wrap";
+
+        // 你已有的标记：🟦 我 / 🟨 bottomOwner / 👉 turn...
+        if (i === mySeat) badges.appendChild(makeBadge("🟦你"));
+        if (typeof st.bottomOwnerSeat === "number" && i === st.bottomOwnerSeat) badges.appendChild(makeBadge("🟨坐家"));
+        if (phase === "play_trick" && trick && i === trick.turnSeat) badges.appendChild(makeBadge("⏳轮到你"));
+        if (phase === "play_trick" && trick && i === trick.leaderSeat) badges.appendChild(makeBadge("🎯先手"));
+
+        title.appendChild(left);
+        title.appendChild(badges);
+        card.appendChild(title);
+
+        // 中部：显示玩家状态（可选）
+        const sub = document.createElement("div");
+        sub.style.marginTop = "6px";
+        sub.style.fontSize = "12px";
+        sub.style.color = "#6b7280";
+        sub.textContent = `hand: ${s.handCount ?? "?"}  | team: ${s.team ?? "?"}`;
+        card.appendChild(sub);
+
+        // ✅ 本回合出牌展示区
+        const play = playsBySeat.get(i);
+        const playBox = document.createElement("div");
+        playBox.style.marginTop = "10px";
+
+        const playTitle = document.createElement("div");
+        playTitle.style.fontSize = "12px";
+        playTitle.style.color = "#374151";
+        playTitle.innerHTML = `<b>本回合出牌</b>`;
+        playBox.appendChild(playTitle);
+
+        if (!play || !play.actual || !(play.actual.cards && play.actual.cards.length)) {
+            const none = document.createElement("div");
+            none.style.fontSize = "12px";
+            none.style.color = "#9ca3af";
+            none.style.marginTop = "6px";
+            none.textContent = "（未出牌）";
+            playBox.appendChild(none);
+        } else {
+            // 显示最终出牌
+            playBox.appendChild(renderCardsInline(play.actual.cards));
+
+            // 甩牌失败提示：只对先手且失败
+            if (play.type === "lead" && play.isThrow && !play.throwOk) {
+                const warn = document.createElement("div");
+                warn.style.marginTop = "8px";
+                warn.style.padding = "8px";
+                warn.style.borderRadius = "10px";
+                warn.style.background = "#fee2e2";
+                warn.style.color = "#991b1b";
+                warn.style.fontSize = "12px";
+                warn.innerHTML = `⚠️ 甩牌失败，已裁剪。${play.info ? "原因：" + escapeHtml(play.info) : ""}`;
+                playBox.appendChild(warn);
+
+                // 可选：再展示意图牌（置灰）
+                if (play.intent && play.intent.cards && play.intent.cards.length) {
+                    const intentLabel = document.createElement("div");
+                    intentLabel.style.marginTop = "8px";
+                    intentLabel.style.fontSize = "12px";
+                    intentLabel.style.color = "#6b7280";
+                    intentLabel.textContent = "原意图：";
+                    playBox.appendChild(intentLabel);
+
+                    const intentRow = renderCardsInline(play.intent.cards);
+                    intentRow.style.opacity = "0.55";
+                    playBox.appendChild(intentRow);
+                }
+            }
         }
 
-        if (st.phase === "bottom" && i === st.bottomOwnerSeat) card.classList.add("owner");
-
-        const badges = [];
-        // race：starter 未确定前，所有坐下玩家都“可抢”
-        if (st.phase === "call_trump" && mode === "race" && starter < 0) {
-            badges.push("⚡可抢");
-        }
-        // starter 确定后标记
-        if (i === starter && starter >= 0) badges.push("🎯先手");
-        // ordered 模式才显示 👉
-        if (st.phase === "call_trump" && mode === "ordered" && i === st.callTurnSeat) badges.push("👉");
-        // bottom 阶段坐家
-        if (st.phase === "bottom" && i === st.bottomOwnerSeat) badges.push("🟨");
-        // 我自己
-        if (i === me) badges.push("🟦");
-        // 已pass
-        if (st.phase === "call_trump" && st.callPassedSeats && st.callPassedSeats[i]) badges.push("⛔pass");
-        if (st.phase === "bottom" && i === st.bottomOwnerSeat) badges.push("🟨扣底中");
-        if (st.phase === "trump_fight" && i !== st.bottomOwnerSeat) badges.push("⛳攻改窗口");
-        if (st.phase === "trump_fight" && st.fightPassedSeats && st.fightPassedSeats[i]) badges.push("⛔跳过");
-
-        const uid = s.uid || "(empty)";
-        const online = !!s.online;
-        const ready = !!s.ready;
-        const team = (typeof s.team === "number") ? s.team : "?";
-        const handCount = (typeof s.handCount === "number") ? s.handCount : 0;
-
-        card.innerHTML = `
-      <div class="seatTop">
-        <div><b>Seat ${i}</b> <span class="uid">${escapeHtml(uid)}</span></div>
-        <div class="seatBadges">${badges.join(" ")}</div>
-      </div>
-      <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap;">
-        <span class="badge ${online ? "on" : ""}">online: ${online}</span>
-        <span class="badge ${ready ? "on" : ""}">ready: ${ready}</span>
-        <span class="badge">team: ${team}</span>
-        <span class="badge">hand: ${handCount}</span>
-      </div>
-    `;
-        el.appendChild(card);
+        card.appendChild(playBox);
+        bar.appendChild(card);
     }
+}
+
+function makeBadge(txt) {
+    const b = document.createElement("span");
+    b.textContent = txt;
+    b.style.fontSize = "12px";
+    b.style.padding = "2px 8px";
+    b.style.borderRadius = "999px";
+    b.style.background = "#eef2ff";
+    return b;
+}
+
+function escapeHtml(s) {
+    return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
 }
 
 function escapeHtml(s) {
@@ -581,6 +649,179 @@ function actionAttackTrump() {
     send("game.attack_trump", { jokerIds: [jokers[0].id, jokers[1].id] });
 }
 
+function renderLeadMove(st) {
+    const info = $("leadInfo");
+    const row = $("leadCards");
+    if (!info || !row) return;
+
+    info.textContent = "";
+    row.innerHTML = "";
+
+    if (!st || !st.trick || !st.trick.lead) {
+        info.textContent = "（暂无）";
+        return;
+    }
+
+    const lead = st.trick.lead;
+    const seat = lead.seat;
+    const ok = lead.throwOk;
+    const isThrow = lead.isThrow;
+
+    info.textContent =
+        `Seat ${seat} 出牌：` +
+        (isThrow ? (ok ? "甩牌成功" : "甩牌失败（已裁剪）") : "普通出牌") +
+        (lead.reason ? ` | ${lead.reason}` : "");
+
+    // 用 ActualIDs 找到对应 Card
+    for (const c of (lead.actualCards || [])) {
+        row.appendChild(makeCardButton(c, "bottom")); // bottom按钮样式=只展示
+    }
+}
+
+function leadPlayed(st) {
+    return st && st.trick && typeof st.trick.lead?.seat === "number" && st.trick.lead.seat !== -1;
+}
+
+function renderTurnHint(st) {
+    const el = document.getElementById("turnHint");
+    if (!el) return;
+
+    if (!st || !st.phase) { el.textContent = ""; return; }
+
+    if (st.phase !== "play_trick") {
+        el.textContent = `当前阶段：${st.phase}`;
+        return;
+    }
+
+    const leader = st.trick.leaderSeat;
+    const turn = st.trick.turnSeat;
+
+    // 你现在只实现先手出牌，所以 turn==leader 时表示等待先手
+    if (!leadPlayed(st)) {
+        el.textContent = `🟢 等待 Seat ${leader} 先手出牌（本版本未实现跟牌）`;
+    } else {
+        el.textContent = `✅ Seat ${st.trick.lead.seat} 已出牌。当前版本未实现跟牌/回合结算。`;
+    }
+}
+
+function makeDisplayCard(c) {
+    const btn = makeCardButton(c, "bottom"); // 复用你的展示样式
+    btn.disabled = true;
+    btn.classList.add("tableCard");
+    return btn;
+}
+
+function renderLeadPanel(st) {
+    const panel = document.getElementById("leadPanel");
+    const leadCards = document.getElementById("leadCards");
+    const intentCards = document.getElementById("intentCards");
+    const badge = document.getElementById("leadBadge");
+    const banner = document.getElementById("throwBanner");
+    if (!panel || !leadCards || !intentCards || !badge || !banner) return;
+
+    // 非 play_trick 也可以显示，但先清空
+    leadCards.innerHTML = "";
+    intentCards.innerHTML = "";
+    badge.textContent = "";
+    banner.classList.add("hidden");
+    banner.classList.remove("danger");
+    banner.textContent = "";
+
+    if (!st || !st.trick) return;
+
+    const lead = st.trick.lead;
+    const played = leadPlayed(st);
+
+    if (!played) {
+        badge.textContent = "（尚未出牌）";
+        return;
+    }
+
+    badge.textContent = `Seat ${lead.seat}`;
+
+    // 最终桌面牌
+    const finalCards = (lead.actualMove && lead.actualMove.cards) ? lead.actualMove.cards : [];
+    for (const c of finalCards) leadCards.appendChild(makeDisplayCard(c));
+
+    // 甩牌提示
+    if (lead.isThrow) {
+        if (lead.throwOk) {
+            // 甩牌成功：可给个温和提示（可选）
+            // banner.classList.remove("hidden");
+            // banner.textContent = "甩牌成功";
+        } else {
+            banner.classList.remove("hidden");
+            banner.classList.add("danger");
+            banner.textContent = `⚠️ 甩牌失败，系统已裁剪出牌。${lead.info ? "原因：" + lead.info : ""}`;
+        }
+
+        // 原意图牌（置灰显示）
+        const intent = (lead.intentMove && lead.intentMove.cards) ? lead.intentMove.cards : [];
+        for (const c of intent) intentCards.appendChild(makeDisplayCard(c));
+    }
+}
+
+function actionPlayLead() {
+    if (!lastState) return;
+    const st = lastState;
+
+    if (st.phase !== "play_trick") return log("当前不在出牌阶段");
+    if (leadPlayed(st)) return log("先手已出牌（未实现跟牌）");
+
+    const mySeat = mySeatIndex(st);
+    if (mySeat !== st.trick.leaderSeat || mySeat !== st.trick.turnSeat) {
+        return log(`未轮到你出牌，应由 Seat ${st.trick.leaderSeat} 先手`);
+    }
+
+    const hand = st.myHand || [];
+    const ids = hand.filter(c => selected.has(c.id)).map(c => c.id);
+    if (ids.length === 0) return log("请选择要出的牌");
+
+    send("game.play_cards", { cardIds: ids });
+}
+
+function setMyUID(uid) {
+    MY_UID = String(uid);
+    window.myUID = MY_UID;
+    localStorage.setItem("upgrade_uid", MY_UID);
+}
+
+function getMyUID() {
+    return MY_UID || window.myUID || localStorage.getItem("upgrade_uid");
+}
+
+function renderCardsInline(cards) {
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.flexWrap = "wrap";
+    wrap.style.gap = "6px";
+
+    for (const c of (cards || [])) {
+        const btn = makeCardButton(c, "bottom"); // 复用你已有的按钮渲染（emoji花色/数字）
+        btn.disabled = true;
+        btn.style.opacity = "1";
+        btn.style.cursor = "default";
+        wrap.appendChild(btn);
+    }
+    return wrap;
+}
+
+function renderCardsInline(cards) {
+    const wrap = document.createElement("div");
+    wrap.style.display = "flex";
+    wrap.style.flexWrap = "wrap";
+    wrap.style.gap = "6px";
+
+    for (const c of (cards || [])) {
+        const btn = makeCardButton(c, "bottom"); // 复用你已有的按钮渲染（emoji花色/数字）
+        btn.disabled = true;
+        btn.style.opacity = "1";
+        btn.style.cursor = "default";
+        wrap.appendChild(btn);
+    }
+    return wrap;
+}
+
 
 // ===== bind buttons (no inline onclick) =====
 window.addEventListener("DOMContentLoaded", () => {
@@ -604,7 +845,8 @@ window.addEventListener("DOMContentLoaded", () => {
     $("btnClear").addEventListener("click", clearSelection);
     $("btnChangeTrump").addEventListener("click", actionChangeTrump);
     $("btnAttackTrump").addEventListener("click", actionAttackTrump);
-
+    $("btnPlay").addEventListener("click", actionPlayLead);
+    document.getElementById("btnPlay").addEventListener("click", actionPlayLead);
 
     renderAll(null);
     setWSStatus();
