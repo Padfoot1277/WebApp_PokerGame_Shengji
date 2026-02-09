@@ -55,9 +55,9 @@ func isSameBlockType(a, b Block) bool {
 // CompareTwoBlocks 比较两个牌型大小（使用时注意先后手顺序对于相等牌力的影响）
 func CompareTwoBlocks(a, b Block) (int, error) {
 	if isSameBlockType(a, b) {
-		return 0, fmt.Errorf("将两个不同牌型的进行比较：%+v， %+v", a, b)
+		return a.RankValue - b.RankValue, nil
 	}
-	return a.RankValue - b.RankValue, nil
+	return 0, fmt.Errorf("将两个不同牌型的进行比较：%+v， %+v", a, b)
 }
 
 // SortBlocksByRank 原地排序：按 Block.RankValue 从大到小

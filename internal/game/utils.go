@@ -101,6 +101,9 @@ func refreshHandSuitClassForUI(st *GameState) {
 			st.Seats[i].Hand[j].SuitClass = rules.ComputeSuitClass(st.Seats[i].Hand[j], st.Trump.Trump)
 		}
 	}
+	for i := 0; i < 8; i++ {
+		st.Bottom[i].SuitClass = rules.ComputeSuitClass(st.Bottom[i], st.Trump.Trump)
+	}
 }
 
 // pickCardsFromHand 传入牌号，返回牌组

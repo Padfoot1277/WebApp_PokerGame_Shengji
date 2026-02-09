@@ -5,13 +5,12 @@ import "upgrade-lan/internal/game/rules"
 type Phase string
 
 const (
-	PhaseLobby       Phase = "lobby"
-	PhaseDealing     Phase = "dealing"
-	PhaseCallTrump   Phase = "call_trump"
-	PhaseBottom      Phase = "bottom"
-	PhaseTrumpFight  Phase = "trump_fight"
-	PhasePlayTrick   Phase = "play_trick"
-	PhaseFollowTrick Phase = "follow_trick"
+	PhaseLobby      Phase = "lobby"
+	PhaseDealing    Phase = "dealing"
+	PhaseCallTrump  Phase = "call_trump"
+	PhaseBottom     Phase = "bottom"
+	PhaseTrumpFight Phase = "trump_fight"
+	PhasePlayTrick  Phase = "play_trick"
 )
 
 type SeatState struct {
@@ -48,10 +47,10 @@ type Move struct {
 }
 
 type PlayedMove struct {
-	Move      `json:"followMove"`                // 先手出牌/跟牌
-	Seat      int             `json:"seat"`      // 进入 PhasePlayTrick 时初始化为-1，表示未出牌
-	SuitClass rules.SuitClass `json:"suitClass"` // 牌域。若跟牌牌域不一致（垫），则SuitClass = "Mix"，不可参与回合结算
-	Info      string          `json:"info"`      // 附加信息
+	Move      `json:"followMove"` // 先手出牌/跟牌
+	Seat      int                 `json:"seat"`      // 进入 PhasePlayTrick 时初始化为-1，表示未出牌
+	SuitClass rules.SuitClass     `json:"suitClass"` // 牌域。若跟牌牌域不一致（垫），则SuitClass = "Mix"，不可参与回合结算
+	Info      string              `json:"info"`      // 附加信息
 }
 
 type ThrowMove struct {
