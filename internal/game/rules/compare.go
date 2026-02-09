@@ -1,32 +1,40 @@
 package rules
 
 import (
-	"errors"
-	"log"
+	"fmt"
 	"sort"
+)
+
+const (
+	RVBigJoker   int = 10000
+	RVSmallJoker int = 9000
+	RVTrumpLevel int = 8500
+	RVSubLevel   int = 8200
+	RVLevel      int = 8000
+	RVTrumpBase  int = 7000
 )
 
 // rankValue 返回“同 SuitClass 内”单张牌的强度（越大越强）
 func rankValue(c Card, t Trump) int {
 	if !isTrumpCard(c, t) {
-		return RankValues[c.Rank]
+		return c.Rank.BaseValue()
 	}
 	if isBigJoker(c) {
-		return 10000
+		return RVBigJoker
 	}
 	if isSmallJoker(c) {
-		return 9000
+		return RVSmallJoker
 	}
-	if isNormal(c) && c.Rank == t.LevelRank {
+	if c.Rank == t.LevelRank {
 		if !t.HasTrumpSuit {
-			return 8000
+			return RVLevel
 		}
 		if c.Suit == t.Suit {
-			return 8500
+			return RVTrumpLevel
 		}
-		return 8200
+		return RVSubLevel
 	}
-	return 7000 + RankValues[c.Rank]
+	return RVTrumpBase + c.Rank.BaseValue()
 }
 
 // compareTwoCards 比较两张牌大小（使用时注意先后手顺序对于相等牌力的影响）
@@ -45,11 +53,11 @@ func isSameBlockType(a, b Block) bool {
 }
 
 // CompareTwoBlocks 比较两个牌型大小（使用时注意先后手顺序对于相等牌力的影响）
-func CompareTwoBlocks(a, b Block) int {
-	if !isSameBlockType(a, b) {
-		log.Fatalf("将两个不同牌型的进行比较：%+v， %+v", a, b)
+func CompareTwoBlocks(a, b Block) (int, error) {
+	if isSameBlockType(a, b) {
+		return 0, fmt.Errorf("将两个不同牌型的进行比较：%+v， %+v", a, b)
 	}
-	return a.RankValue - b.RankValue
+	return a.RankValue - b.RankValue, nil
 }
 
 // SortBlocksByRank 原地排序：按 Block.RankValue 从大到小
@@ -60,7 +68,7 @@ func SortBlocksByRank(blocks []Block) error {
 	}
 	for i := 1; i < len(blocks); i++ {
 		if !isSameBlockType(blocks[0], blocks[i]) {
-			return errors.New("牌型不匹配，不可比较")
+			return fmt.Errorf("牌型不匹配，不可比较")
 		}
 	}
 	sort.Slice(blocks, func(i, j int) bool {

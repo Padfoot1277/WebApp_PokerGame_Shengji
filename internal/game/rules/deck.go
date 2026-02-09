@@ -5,6 +5,8 @@ import (
 	"time"
 )
 
+const DoubleDeckSize = 108
+
 func NewDoubleDeck() []Card {
 	suits := []Suit{Spade, Heart, Club, Diamond}
 	ranks := []Rank{
@@ -12,9 +14,9 @@ func NewDoubleDeck() []Card {
 		R7, R6, R5, R4, R3, R2,
 	}
 
-	var deck []Card
+	deck := make([]Card, 0, DoubleDeckSize)
 	id := 0
-	// 两副普通牌
+	// 两副牌
 	for d := 0; d < 2; d++ {
 		for _, s := range suits {
 			for _, r := range ranks {
@@ -22,15 +24,13 @@ func NewDoubleDeck() []Card {
 					ID:   id,
 					Suit: s,
 					Rank: r,
-					Kind: KindNormal,
 				})
 				id++
 			}
 		}
-		// 每副：大王、小王各一张（这里用 Color 区分红/黑仅作为显示）
-		deck = append(deck, Card{ID: id, Kind: KindJokerSmall, Color: Black, Rank: RSJ})
+		deck = append(deck, Card{ID: id, Suit: SmallJoker, Rank: RSJ})
 		id++
-		deck = append(deck, Card{ID: id, Kind: KindJokerBig, Color: Red, Rank: RBJ})
+		deck = append(deck, Card{ID: id, Suit: BigJoker, Rank: RBJ})
 		id++
 	}
 	// 总数应为108
@@ -46,9 +46,8 @@ func ShuffleInPlace(deck []Card) {
 	}
 }
 
-// Deal25PlusBottom8 seatsHands[4] each 25, bottom 8
-func Deal25PlusBottom8(deck []Card) (hands [4][]Card, bottom []Card) {
-	// 0..99 -> 4*25=100
+// Deal seatsHands[4] each 25, bottom 8
+func Deal(deck []Card) (hands [4][]Card, bottom []Card) {
 	idx := 0
 	for s := 0; s < 4; s++ {
 		hands[s] = append(hands[s], deck[idx:idx+25]...)

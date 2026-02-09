@@ -2,17 +2,18 @@ package room
 
 import (
 	"encoding/json"
-	"fmt"
-
 	"upgrade-lan/internal/game"
 )
 
-func ParseClientEvent(typ string, raw json.RawMessage) (game.ClientEventType, any, error) {
+func ParseClientEvent(typ string, raw json.RawMessage) (game.ClientEventType, any, *game.AppError) {
 	switch typ {
 	case string(game.EvSit):
 		var p game.SitPayload
 		if err := json.Unmarshal(raw, &p); err != nil {
-			return "", nil, fmt.Errorf("bad_payload sit")
+			return "", nil, game.ErrBadJSON.WithCause("选座请求解析错误")
+		}
+		if err := p.Validate(); err != nil {
+			return "", nil, game.ErrInvalidPayload.WithCause(err.Error())
 		}
 		return game.EvSit, p, nil
 	case string(game.EvLeave):
@@ -29,39 +30,54 @@ func ParseClientEvent(typ string, raw json.RawMessage) (game.ClientEventType, an
 	case string(game.EvCallTrump):
 		var p game.CallTrumpPayload
 		if err := json.Unmarshal(raw, &p); err != nil {
-			return "", nil, fmt.Errorf("定主请求错误")
+			return "", nil, game.ErrBadJSON.WithCause("定主请求解析错误")
+		}
+		if err := p.Validate(); err != nil {
+			return "", nil, game.ErrInvalidPayload.WithCause(err.Error())
 		}
 		return game.EvCallTrump, p, nil
 
 	case string(game.EvPutBottom):
 		var p game.PutBottomPayload
 		if err := json.Unmarshal(raw, &p); err != nil {
-			return "", nil, fmt.Errorf("扣底请求错误")
+			return "", nil, game.ErrBadJSON.WithCause("扣底请求解析错误")
+		}
+		if err := p.Validate(); err != nil {
+			return "", nil, game.ErrInvalidPayload.WithCause(err.Error())
 		}
 		return game.EvPutBottom, p, nil
 
 	case string(game.EvChangeTrump):
 		var p game.ChangeTrumpPayload
 		if err := json.Unmarshal(raw, &p); err != nil {
-			return "", nil, fmt.Errorf("改主请求错误")
+			return "", nil, game.ErrBadJSON.WithCause("改主请求解析错误")
+		}
+		if err := p.Validate(); err != nil {
+			return "", nil, game.ErrInvalidPayload.WithCause(err.Error())
 		}
 		return game.EvChangeTrump, p, nil
 
 	case string(game.EvAttackTrump):
 		var p game.AttackTrumpPayload
 		if err := json.Unmarshal(raw, &p); err != nil {
-			return "", nil, fmt.Errorf("攻主请求错误")
+			return "", nil, game.ErrBadJSON.WithCause("攻主请求解析错误")
+		}
+		if err := p.Validate(); err != nil {
+			return "", nil, game.ErrInvalidPayload.WithCause(err.Error())
 		}
 		return game.EvAttackTrump, p, nil
 
 	case string(game.EvPlayCards):
 		var p game.PlayCardsPayload
 		if err := json.Unmarshal(raw, &p); err != nil {
-			return "", nil, fmt.Errorf("出牌请求错误")
+			return "", nil, game.ErrBadJSON.WithCause("出牌请求解析错误")
+		}
+		if err := p.Validate(); err != nil {
+			return "", nil, game.ErrInvalidPayload.WithCause(err.Error())
 		}
 		return game.EvPlayCards, p, nil
 
 	default:
-		return "", nil, fmt.Errorf("unknown_event_type: %s", typ)
+		return "", nil, game.ErrUnknownEvent
 	}
 }

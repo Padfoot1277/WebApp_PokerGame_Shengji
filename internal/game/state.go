@@ -5,12 +5,13 @@ import "upgrade-lan/internal/game/rules"
 type Phase string
 
 const (
-	PhaseLobby      Phase = "lobby"
-	PhaseDealing    Phase = "dealing"
-	PhaseCallTrump  Phase = "call_trump"
-	PhaseBottom     Phase = "bottom"
-	PhaseTrumpFight Phase = "trump_fight"
-	PhasePlayTrick  Phase = "play_trick"
+	PhaseLobby       Phase = "lobby"
+	PhaseDealing     Phase = "dealing"
+	PhaseCallTrump   Phase = "call_trump"
+	PhaseBottom      Phase = "bottom"
+	PhaseTrumpFight  Phase = "trump_fight"
+	PhasePlayTrick   Phase = "play_trick"
+	PhaseFollowTrick Phase = "follow_trick"
 )
 
 type SeatState struct {
@@ -41,33 +42,33 @@ const (
 )
 
 type Move struct {
-	Blocks  [][]rules.Block `json:"blocks"`    // 牌型（每种牌型合为一组，组内按牌级降序排序，用于判断牌力大小）
-	CardIDs []int           `json:"actualIds"` // 出牌ID
-	Cards   []rules.Card    `json:"cards"`     // 出牌
+	Blocks  [][]rules.Block `json:"blocks"`    // 牌型二维切片。外层：不同牌型组（拖拉机/对子/单张）；内层：同牌型的若干block，按牌力降序
+	CardIDs []int           `json:"actualIds"` // （用于前端）出牌ID
+	Cards   []rules.Card    `json:"cards"`     // （用于前端）出牌
 }
 
-type LeadMove struct {
-	Seat       int             `json:"seat"` // 进入 PhasePlayTrick 时初始化为-1，表示未出牌，便于前端判断
-	SuitClass  rules.SuitClass `json:"suitClass"`
-	IsThrow    bool            `json:"isThrow"`    // 玩家原意是否甩牌
-	ThrowOK    bool            `json:"throwOk"`    // 甩牌是否成功（true=保留；false=裁剪）
-	IntentMove Move            `json:"intentMove"` // 原出牌意图
-	ActualMove Move            `json:"actualMove"` // 最终出牌
-	Info       string          `json:"info"`       // throw_failed_by_xxx 等调试信息
+type PlayedMove struct {
+	Move      `json:"followMove"`                // 先手出牌/跟牌
+	Seat      int             `json:"seat"`      // 进入 PhasePlayTrick 时初始化为-1，表示未出牌
+	SuitClass rules.SuitClass `json:"suitClass"` // 牌域。若跟牌牌域不一致（垫），则SuitClass = "Mix"，不可参与回合结算
+	Info      string          `json:"info"`      // 附加信息
 }
 
-type FollowMove struct {
-	Seat      int             `json:"seat"`       // 进入 PhasePlayTrick 时初始化为-1，表示未出牌，便于前端判断
-	SuitClass rules.SuitClass `json:"suitClass"`  // 若跟牌牌域不一致，则SuitClass = "Mix"，不可参与回合结算
-	Move      Move            `json:"followMove"` // 跟牌
-	Info      string          `json:"info"`       // 调试信息
+type ThrowMove struct {
+	IsThrow    bool `json:"isThrow"`    // 先手玩家原意是否甩牌
+	ThrowOK    bool `json:"throwOk"`    // 甩牌是否成功（true=保留；false=裁剪）
+	IntentMove Move `json:"intentMove"` // 原出牌意图
 }
 
 type TrickState struct {
-	LeaderSeat int           `json:"leaderSeat"` // 本回合先手
-	TurnSeat   int           `json:"turnSeat"`   // 当前轮到谁
-	Lead       LeadMove      `json:"lead"`
-	Follows    [3]FollowMove `json:"follows"` // 每座位本回合实际出的牌（未出牌则 CardIDs 为空）
+	LeaderSeat int            `json:"leaderSeat"`  // 本回合先手
+	TurnSeat   int            `json:"turnSeat"`    // 当前轮到谁
+	Plays      [4]*PlayedMove `json:"playedMoves"` // 每座位本回合实际出的牌（未出牌则为空）
+	Throw      *ThrowMove     `json:"throwMove"`   // 先手甩牌意图
+
+	Resolved   bool `json:"resolved"`   // 本回合（本墩）是否结束
+	WinnerSeat int  `json:"winnerSeat"` // resolved 后有效
+	Points     int  `json:"points"`     // 本墩打家吃分（末墩抠底之前）
 }
 
 type GameState struct {
@@ -81,7 +82,7 @@ type GameState struct {
 	// ---- 小局起始/定主流转信息 ----
 	RoundIndex   int      `json:"roundIndex"` // 第几小局，从0开始
 	CallMode     CallMode `json:"callMode"`   // race / ordered
-	CallPassMask uint8    `json:"-"`          // bit0..bit3 表示 seat 是否已pass（内部），用于第一小局判定是否无主
+	CallPassMask uint8    `json:"-"`          // bit0..bit3 表示seat是否已pass（内部），用于第一小局判定是否无主
 
 	NextStarterSeat int `json:"-"`             // 跨小局保留：下一小局谁先定主/先手（结算时写）
 	StarterSeat     int `json:"starterSeat"`   // 本小局谁先定主（=NextStarterSeat）
@@ -100,12 +101,4 @@ type GameState struct {
 
 	// ---- 回合 ----
 	Trick TrickState `json:"trick"`
-}
-
-// TeamOfSeat seat0&2 -> team0; seat1&3 -> team1
-func TeamOfSeat(seat int) int {
-	if seat%2 == 0 {
-		return 0
-	}
-	return 1
 }

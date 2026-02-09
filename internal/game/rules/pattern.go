@@ -1,10 +1,8 @@
 package rules
 
 import (
-	"errors"
 	"fmt"
 	"sort"
-	"strconv"
 )
 
 type Trump struct {
@@ -37,35 +35,19 @@ func isRedSuit(s Suit) bool {
 func isBlackSuit(s Suit) bool {
 	return s == Spade || s == Club
 }
-func isNormal(c Card) bool {
-	return c.Kind == KindNormal
-}
 func isBigJoker(c Card) bool {
-	return c.Kind == KindJokerBig
+	return c.Suit == BigJoker
 }
 func isSmallJoker(c Card) bool {
-	return c.Kind == KindJokerSmall
+	return c.Suit == SmallJoker
 }
-
-// suitClassOfSuit：把 Suit 映射到 H/S/D/C
-func suitClassOfSuit(s Suit) SuitClass {
-	switch s {
-	case Heart:
-		return SCH
-	case Spade:
-		return SCS
-	case Diamond:
-		return SCD
-	case Club:
-		return SCC
-	default:
-		return SCUnknown
-	}
+func isNormal(c Card) bool {
+	return c.Suit != SmallJoker && c.Suit != BigJoker
 }
 
 // isTrumpCard：根据 trump 信息判断某张牌是否为主牌
 func isTrumpCard(c Card, t Trump) bool {
-	if isBigJoker(c) || isSmallJoker(c) {
+	if !isNormal(c) {
 		return true
 	}
 	if c.Rank == t.LevelRank {
@@ -82,18 +64,29 @@ func ComputeSuitClass(c Card, t Trump) SuitClass {
 	if isTrumpCard(c, t) {
 		return SCTrump
 	}
-	return suitClassOfSuit(c.Suit)
+	switch c.Suit {
+	case Heart:
+		return SCH
+	case Spade:
+		return SCS
+	case Diamond:
+		return SCD
+	case Club:
+		return SCC
+	default:
+		return SCUnknown
+	}
 }
 
 // ComputeSuitClassAllSame 如果所有牌都属于同一个 SuitClass，则返回该 SuitClass 和 true，用于先手出牌校验/跟牌可比性判断
-func ComputeSuitClassAllSame(selected []Card, t Trump) (SuitClass, bool) {
+func ComputeSuitClassAllSame(selected []Card) (SuitClass, bool) {
 	if len(selected) == 0 {
-		return "", false
+		return SCUnknown, false
 	}
-	sc0 := ComputeSuitClass(selected[0], t)
-	for i := 1; i < len(selected); i++ {
-		if ComputeSuitClass(selected[i], t) != sc0 {
-			return "", false
+	sc0 := selected[0].SuitClass
+	for _, s := range selected[1:] {
+		if s.SuitClass != sc0 {
+			return SCMix, false
 		}
 	}
 	return sc0, true
@@ -102,7 +95,7 @@ func ComputeSuitClassAllSame(selected []Card, t Trump) (SuitClass, bool) {
 // FindBlocksInHand 在手牌中寻找某一牌型并排序
 func FindBlocksInHand(hand []Card, t Trump, suitClass SuitClass, bt BlockType, tractorLen int) ([]Block, error) {
 	// 筛选牌域
-	cards := getOneSuitClassCards(hand, suitClass)
+	cards := filterBySuitClass(hand, suitClass)
 	// 寻找牌型
 	blocks := make([]Block, 0, len(cards))
 	switch bt {
@@ -125,16 +118,16 @@ func FindBlocksInHand(hand []Card, t Trump, suitClass SuitClass, bt BlockType, t
 		return buildPairs(cards, t, suitClass)
 	case BlockTractor:
 		if tractorLen < 2 {
-			return nil, errors.New("要查找的牌型非法，拖拉机长度应大于1")
+			return nil, fmt.Errorf("要查找的牌型非法，拖拉机长度应大于1")
 		}
 		return buildTractors(cards, t, suitClass, tractorLen)
 	default:
-		return nil, errors.New("要查找的牌型非法")
+		return nil, fmt.Errorf("要查找的牌型非法")
 	}
 }
 
-// getOneSuitClassCards 获取手牌中某个牌域的所有牌
-func getOneSuitClassCards(hand []Card, suitClass SuitClass) []Card {
+// filterBySuitClass 获取手牌中某个牌域的所有牌
+func filterBySuitClass(hand []Card, suitClass SuitClass) []Card {
 	cards := make([]Card, 0, len(hand))
 	for _, c := range hand {
 		if c.SuitClass == suitClass {
@@ -146,50 +139,25 @@ func getOneSuitClassCards(hand []Card, suitClass SuitClass) []Card {
 
 // buildPairs 在同牌域中寻找对子（同名牌对：ID 相差 54）
 func buildPairs(cards []Card, t Trump, suitClass SuitClass) ([]Block, error) {
-	m := map[int][]Card{}
-	for _, c := range cards {
-		rv := rankValue(c, t)
-		m[rv] = append(m[rv], c)
-	}
 	blocks := make([]Block, 0)
-	for rv, list := range m {
-		if len(list) == 1 {
+	idMap := make(map[int]Card, len(cards))
+	for _, c := range cards {
+		idMap[c.ID] = c
+	}
+	for _, c := range cards {
+		otherID := c.ID + 54
+		other, ok := idMap[otherID]
+		if !ok {
 			continue
 		}
-		// 一般情况下，某个牌域下同rankValue的牌只有两张，但存在特殊情况：副级牌同属主牌域，rankValue相同，可能会有多个对
-		if rv != 8000 && rv != 8200 {
-			if len(list) != 2 {
-				return nil, fmt.Errorf("出现非法情况，存在两张以上的非法同值牌(%s,%s)", string(suitClass), strconv.Itoa(rv))
-			}
-			blocks = append(blocks, Block{
-				Type:       BlockPair,
-				SuitClass:  suitClass,
-				RankValue:  rv,
-				TractorLen: 0,
-				Cards:      list,
-			})
-			continue
-		}
-		// 对于特殊情况，用集合加速查找：id -> card，规则：pair = {id, id+54}
-		idMap := make(map[int]Card, len(list))
-		for _, c := range list {
-			idMap[c.ID] = c
-		}
-		for _, c := range list {
-			otherID := c.ID + 54
-			other, ok := idMap[otherID]
-			if !ok {
-				continue
-			}
-			pair := []Card{c, other}
-			blocks = append(blocks, Block{
-				Type:       BlockPair,
-				SuitClass:  suitClass,
-				RankValue:  rv,
-				TractorLen: 0,
-				Cards:      pair,
-			})
-		}
+		pair := []Card{c, other}
+		blocks = append(blocks, Block{
+			Type:       BlockPair,
+			SuitClass:  suitClass,
+			RankValue:  rankValue(c, t),
+			TractorLen: 0,
+			Cards:      pair,
+		})
 	}
 	// 降序排序
 	if err := SortBlocksByRank(blocks); err != nil {
@@ -198,7 +166,7 @@ func buildPairs(cards []Card, t Trump, suitClass SuitClass) ([]Block, error) {
 	return blocks, nil
 }
 
-// buildTractors 在同牌域中寻找拖拉机
+// buildTractors 在同牌域中寻找固定长度的拖拉机
 func buildTractors(cards []Card, t Trump, suitClass SuitClass, tractorLen int) ([]Block, error) {
 	if tractorLen < 2 {
 		return nil, fmt.Errorf("拖拉机长度不可小于2")
@@ -210,7 +178,7 @@ func buildTractors(cards []Card, t Trump, suitClass SuitClass, tractorLen int) (
 	}
 	// 找长度为 tractorLen 的连续下降窗口
 	blocks := make([]Block, 0)
-	for i := 0; i < len(pairs); i++ {
+	for i := 0; i < len(pairs) && i+tractorLen <= len(pairs); i++ {
 		start := pairs[i].RankValue
 		ok := true
 		cardsUsed := make([]Card, 0, 2*tractorLen)

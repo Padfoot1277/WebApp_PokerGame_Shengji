@@ -14,26 +14,22 @@ type ViewState struct {
 	Seats   [4]SeatView `json:"seats"`
 	Teams   [2]TeamView `json:"teams"`
 
-	RoundIndex      int      `json:"roundIndex"`
-	CallMode        CallMode `json:"callMode"`
-	CallPassedSeats [4]bool  `json:"callPassedSeats"` // 哪些座位已pass
-
-	StarterSeat   int `json:"starterSeat"`
-	CallTurnSeat  int `json:"callTurnSeat"`
-	CallPassCount int `json:"callPassCount"`
-
-	FightPassedSeats [4]bool `json:"fightPassedSeats"`
-	FightPassCount   int     `json:"fightPassCount"`
+	RoundIndex       int      `json:"roundIndex"`
+	CallMode         CallMode `json:"callMode"`
+	CallPassedSeats  [4]bool  `json:"callPassedSeats"`
+	StarterSeat      int      `json:"starterSeat"`
+	CallTurnSeat     int      `json:"callTurnSeat"`
+	CallPassCount    int      `json:"callPassCount"`
+	FightPassedSeats [4]bool  `json:"fightPassedSeats"`
+	FightPassCount   int      `json:"fightPassCount"`
+	BottomOwnerSeat  int      `json:"bottomOwnerSeat"`
 
 	Trump TrumpState `json:"trump"`
-
-	BottomOwnerSeat int `json:"bottomOwnerSeat"`
+	Trick TrickState `json:"trick"` // 全部可见
 
 	MySeat   int          `json:"mySeat"`
 	MyBottom []rules.Card `json:"myBottom"` // 仅在 PhaseBottom 本人可见
-	MyHand   []rules.Card `json:"myHand"`   // 只给本人
-
-	Trick TrickState `json:"trick"`
+	MyHand   []rules.Card `json:"myHand"`   // 仅本人可见
 }
 
 type SeatView struct {
@@ -49,8 +45,7 @@ type TeamView struct {
 }
 
 type ErrorMsg struct {
-	Type    string `json:"type"` // "error"
-	Code    string `json:"code"`
+	Type    string `json:"type"`
 	Message string `json:"message"`
 }
 
@@ -65,6 +60,7 @@ func MakeView(st GameState, uid string) ViewState {
 
 	myHand := []rules.Card(nil)
 	myBottom := []rules.Card(nil)
+	mySeat := -1
 
 	for i := 0; i < 4; i++ {
 		seats[i] = SeatView{
@@ -75,34 +71,19 @@ func MakeView(st GameState, uid string) ViewState {
 			HandCount: st.Seats[i].HandCount,
 		}
 		if st.Seats[i].UID == uid {
+			mySeat = i
 			myHand = append([]rules.Card(nil), st.Seats[i].Hand...)
 		}
 	}
 
-	passed := [4]bool{}
-	fightPassed := [4]bool{}
-	for i := 0; i < 4; i++ {
-		if (st.CallPassMask & (1 << uint(i))) != 0 {
-			passed[i] = true
-		}
-		if (st.FightPassMask & (1 << uint(i))) != 0 {
-			fightPassed[i] = true
-		}
-	}
+	passed := maskToBool4(st.CallPassMask)
+	fightPassed := maskToBool4(st.FightPassMask)
 
 	// 私有：只有坐家在扣底阶段能看到底牌牌面
 	if st.Phase == PhaseBottom && st.BottomOwnerSeat >= 0 {
 		ownerUID := st.Seats[st.BottomOwnerSeat].UID
 		if ownerUID == uid {
 			myBottom = append([]rules.Card(nil), st.Bottom...)
-		}
-	}
-
-	mySeat := -1
-	for i := 0; i < 4; i++ {
-		if st.Seats[i].UID == uid { // 注意字段名对齐
-			mySeat = i
-			break
 		}
 	}
 
@@ -133,4 +114,11 @@ func MakeView(st GameState, uid string) ViewState {
 
 		Trick: st.Trick,
 	}
+}
+
+func maskToBool4(m uint8) (out [4]bool) {
+	for i := 0; i < 4; i++ {
+		out[i] = (m & (1 << uint(i))) != 0
+	}
+	return
 }

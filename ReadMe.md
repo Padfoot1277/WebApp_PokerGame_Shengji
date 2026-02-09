@@ -20,7 +20,7 @@
         compare.go     # 牌型比较
         deck.go        # 发牌、洗牌
         follow.go      # 跟牌约束、垫牌、主杀判断
-        pattern.go     # 牌型识别：单/对/拖拉机/甩牌
+        pattern.go     # 牌域识别（主副牌）、牌型识别（单/对/拖拉机/甩牌）
         score.go       # 分牌计算、末墩抠底倍数、结算升级
         sort.go        # 手牌排序
         trump.go       # 定主/改主/攻主/硬主

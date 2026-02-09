@@ -4,31 +4,33 @@ package rules
 type Suit string
 
 const (
-	Spade   Suit = "S"
-	Heart   Suit = "H"
-	Club    Suit = "C"
-	Diamond Suit = "D"
+	Spade      Suit = "S"
+	Heart      Suit = "H"
+	Club       Suit = "C"
+	Diamond    Suit = "D"
+	SmallJoker Suit = "SJ"
+	BigJoker   Suit = "BJ"
 )
 
 // SuitClass 出牌类别（牌域）
 type SuitClass string
 
 const (
-	SCTrump   SuitClass = "Trump"
-	SCS       SuitClass = "S"
-	SCH       SuitClass = "H"
-	SCC       SuitClass = "C"
-	SCD       SuitClass = "D"
-	SCMix     SuitClass = "Mix"
-	SCUnknown SuitClass = "Unknown"
+	SCTrump   SuitClass = "主牌"
+	SCS       SuitClass = "黑桃"
+	SCH       SuitClass = "红桃"
+	SCC       SuitClass = "梅花"
+	SCD       SuitClass = "方块"
+	SCMix     SuitClass = "杂牌"
+	SCUnknown SuitClass = "未知"
 )
 
 // Rank 牌号
 type Rank string
 
 const (
-	RBJ Rank = "JB"
-	RSJ Rank = "JS"
+	RBJ Rank = "BJ"
+	RSJ Rank = "SJ"
 	RA  Rank = "A"
 	RK  Rank = "K"
 	RQ  Rank = "Q"
@@ -42,49 +44,52 @@ const (
 	R4  Rank = "4"
 	R3  Rank = "3"
 	R2  Rank = "2"
+
+	RPending Rank = "Pending"
 )
 
-var RankValues = map[Rank]int{
-	RBJ: 16,
-	RSJ: 15,
-	RA:  14,
-	RK:  13,
-	RQ:  12,
-	RJ:  11,
-	R10: 10,
-	R9:  9,
-	R8:  8,
-	R7:  7,
-	R6:  6,
-	R5:  5,
-	R4:  4,
-	R3:  3,
-	R2:  2,
+// BaseValue 用于排序显示/基础分组
+func (r Rank) BaseValue() int {
+	switch r {
+	case RBJ:
+		return 16
+	case RSJ:
+		return 15
+	case RA:
+		return 14
+	case RK:
+		return 13
+	case RQ:
+		return 12
+	case RJ:
+		return 11
+	case R10:
+		return 10
+	case R9:
+		return 9
+	case R8:
+		return 8
+	case R7:
+		return 7
+	case R6:
+		return 6
+	case R5:
+		return 5
+	case R4:
+		return 4
+	case R3:
+		return 3
+	case R2:
+		return 2
+	default:
+		return 0
+	}
 }
-
-// CardKind 牌等级
-type CardKind string
-
-const (
-	KindNormal     CardKind = "normal"
-	KindJokerBig   CardKind = "joker_big"
-	KindJokerSmall CardKind = "joker_small"
-)
-
-// Color 牌色
-type Color string
-
-const (
-	Red   Color = "red"
-	Black Color = "black"
-)
 
 // Card 牌
 type Card struct {
 	ID        int       `json:"id"`
-	Kind      CardKind  `json:"kind"`
-	Suit      Suit      `json:"suit,omitempty"` // normal 才有
+	Suit      Suit      `json:"suit,omitempty"` // 原花色
 	Rank      Rank      `json:"rank"`
-	Color     Color     `json:"color,omitempty"`      // joker 才有（用于显示）
-	SuitClass SuitClass `json:"suit_class,omitempty"` // 定主后确定牌域
+	SuitClass SuitClass `json:"suit_class,omitempty"` // 牌域（定主后确定，但Card存动态属性是否合理？这里仅用于快速判断主副牌
 }

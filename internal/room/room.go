@@ -103,13 +103,13 @@ func (r *Room) Run() {
 func (r *Room) handleEvent(c transport.Client, typ string, raw json.RawMessage) {
 	evType, payload, err := ParseClientEvent(typ, raw)
 	if err != nil {
-		_ = c.SendJSON(game.ErrorMsg{Type: "error", Code: "bad_event", Message: err.Error()})
+		_ = c.SendJSON(game.ErrorMsg{Type: "error", Message: err.Error()})
 		return
 	}
 	res, err := game.Reduce(r.state, c.UID(), evType, payload)
 	if err != nil {
 		fmt.Println(err, res.Notice)
-		_ = c.SendJSON(game.ErrorMsg{Type: "error", Code: "reject", Message: err.Error()})
+		_ = c.SendJSON(game.ErrorMsg{Type: "error", Message: err.Error()})
 		return
 	}
 	if res.Changed {
