@@ -19,6 +19,8 @@ const (
 	EvPlayCards ClientEventType = "game.play_cards"
 )
 
+// ---- 请求Payload ----
+
 type SitPayload struct {
 	Seat int `json:"seat"`
 }
@@ -49,38 +51,6 @@ type PlayCardsPayload struct {
 
 // ---- PayLoad 校验 ----
 
-func validateLen(ids []int, want int, code string) *AppError {
-	if len(ids) != want {
-		return NewErr(code, "invalid number of cards")
-	}
-	return nil
-}
-
-func validateLenIn(ids []int, a, b int, code string) *AppError {
-	if len(ids) != a && len(ids) != b {
-		return NewErr(code, "invalid number of cards")
-	}
-	return nil
-}
-
-func validateUnique(ids []int, code string) *AppError {
-	seen := make(map[int]struct{}, len(ids))
-	for _, id := range ids {
-		if _, ok := seen[id]; ok {
-			return NewErr(code, "duplicate card id")
-		}
-		seen[id] = struct{}{}
-	}
-	return nil
-}
-
-func validateNonEmpty(ids []int, code string) *AppError {
-	if len(ids) == 0 {
-		return NewErr(code, "empty card list")
-	}
-	return nil
-}
-
 func (p SitPayload) Validate() *AppError {
 	if p.Seat < 0 || p.Seat >= 4 {
 		return ErrSeatRange
@@ -89,56 +59,56 @@ func (p SitPayload) Validate() *AppError {
 }
 
 func (p CallTrumpPayload) Validate() *AppError {
-	if err := validateLenIn(p.LevelIDs, 1, 2, "ERR_CALL_TRUMP_LEVEL_COUNT"); err != nil {
+	if err := validateLenIn(p.LevelIDs, 1, 2); err != nil {
 		return err
 	}
-	if err := validateUnique(p.LevelIDs, "ERR_CALL_TRUMP_LEVEL_DUP"); err != nil {
+	if err := validateUnique(p.LevelIDs); err != nil {
 		return err
 	}
 	if p.JokerID < 0 {
-		return NewErr("ERR_CALL_TRUMP_NO_JOKER", "jokerId required")
+		return ErrWrongCardsNum.WithInfo("缺少定主王牌")
 	}
 	return nil
 }
 
 func (p ChangeTrumpPayload) Validate() *AppError {
-	if err := validateLen(p.LevelIDs, 2, "ERR_CHANGE_TRUMP_LEVEL_COUNT"); err != nil {
+	if err := validateLen(p.LevelIDs, 2); err != nil {
 		return err
 	}
-	if err := validateUnique(p.LevelIDs, "ERR_CHANGE_TRUMP_LEVEL_DUP"); err != nil {
+	if err := validateUnique(p.LevelIDs); err != nil {
 		return err
 	}
 	if p.JokerID < 0 {
-		return NewErr("ERR_CHANGE_TRUMP_NO_JOKER", "jokerId required")
+		return ErrWrongCardsNum.WithInfo("缺少定主王牌")
 	}
 	return nil
 }
 
 func (p AttackTrumpPayload) Validate() *AppError {
-	if err := validateLen(p.JokerIDs, 2, "ERR_ATTACK_TRUMP_COUNT"); err != nil {
+	if err := validateLen(p.JokerIDs, 2); err != nil {
 		return err
 	}
-	if err := validateUnique(p.JokerIDs, "ERR_ATTACK_TRUMP_DUP"); err != nil {
+	if err := validateUnique(p.JokerIDs); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (p PutBottomPayload) Validate() *AppError {
-	if err := validateLen(p.DiscardIDs, 8, "ERR_PUT_BOTTOM_COUNT"); err != nil {
+	if err := validateLen(p.DiscardIDs, 8); err != nil {
 		return err
 	}
-	if err := validateUnique(p.DiscardIDs, "ERR_PUT_BOTTOM_DUP"); err != nil {
+	if err := validateUnique(p.DiscardIDs); err != nil {
 		return err
 	}
 	return nil
 }
 
 func (p PlayCardsPayload) Validate() *AppError {
-	if err := validateNonEmpty(p.CardIDs, "ERR_PLAY_EMPTY"); err != nil {
+	if err := validateNonEmpty(p.CardIDs); err != nil {
 		return err
 	}
-	if err := validateUnique(p.CardIDs, "ERR_PLAY_DUP"); err != nil {
+	if err := validateUnique(p.CardIDs); err != nil {
 		return err
 	}
 	return nil

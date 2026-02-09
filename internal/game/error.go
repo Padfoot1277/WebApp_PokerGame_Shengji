@@ -8,14 +8,14 @@ import (
 // - Code: 稳定、可机读，用于前端/UI/测试/replay
 // - Msg:  给人看的简要信息（可英文，前端可自行映射文案）
 type AppError struct {
-	Code  string `json:"code"`
-	Msg   string `json:"message"`
-	Cause string `json:"info"`
+	Code string `json:"code"`
+	Msg  string `json:"message"`
+	Info string `json:"info"`
 }
 
 func (e *AppError) Error() string {
-	if e.Cause != "" {
-		return fmt.Sprintf("%s (%s: %s)", e.Cause, e.Code, e.Msg)
+	if e.Info != "" {
+		return fmt.Sprintf("%s (%s)", e.Info, e.Code)
 	}
 	return fmt.Sprintf("%s (%s)", e.Msg, e.Code)
 }
@@ -28,58 +28,65 @@ func NewErr(code, msg string) *AppError {
 	}
 }
 
-// WithCause 给已有 AppError 附加 Cause
-func (e *AppError) WithCause(info string) *AppError {
+// WithInfo 给已有 AppError 附加 Info
+func (e *AppError) WithInfo(info string) *AppError {
 	if e == nil {
 		return nil
 	}
-	e.Cause = info
+	e.Info = info
 	return e
 }
 
-func (e *AppError) WithCausef(format string, a ...any) *AppError {
+func (e *AppError) WithInfof(format string, a ...any) *AppError {
 	if e == nil {
 		return nil
 	}
-	e.Cause = fmt.Sprintf(format, a...)
+	e.Info = fmt.Sprintf(format, a...)
 	return e
 }
 
+func (e *AppError) ClearInfo() *AppError {
+	if e == nil {
+		return nil
+	}
+	e.Info = ""
+	return e
+}
+
+// 以下 err 变量会在各处使用，要注意 Info 的更改/清空（使用 WithInfo / ClearInfo），否则会出现错误的提示信息
 // ---------- 协议 / Payload 校验错误（router 层）----------
-
 var (
-	ErrBadJSON        = NewErr("PROTO_BAD_JSON", "invalid json payload")
-	ErrUnknownEvent   = NewErr("PROTO_UNKNOWN_EVENT", "unknown event type")
-	ErrInvalidPayload = NewErr("PROTO_INVALID_PAYLOAD", "invalid payload")
-	ErrDuplicateIDs   = NewErr("PROTO_DUPLICATE_IDS", "duplicate card ids")
-	ErrEmptyCards     = NewErr("PROTO_EMPTY_CARDS", "no cards selected")
-	ErrSeatRange      = NewErr("PROTO_SEAT_OUT_OF_RANGE", "seat out of range")
-	ErrDuplicateOps   = NewErr("PROTO_DUPLICATE_OPS", "duplicate operations")
+	ErrBadJSON        = NewErr("PROTO_BAD_JSON", "JSON 数据格式错误")
+	ErrUnknownEvent   = NewErr("PROTO_UNKNOWN_EVENT", "未知的事件类型")
+	ErrInvalidPayload = NewErr("PROTO_INVALID_PAYLOAD", "请求数据不合法")
+	ErrDuplicateIDs   = NewErr("PROTO_DUPLICATE_IDS", "存在重复的卡牌 ID")
+	ErrEmptyCards     = NewErr("PROTO_EMPTY_CARDS", "未选择任何卡牌")
+	ErrSeatRange      = NewErr("PROTO_SEAT_OUT_OF_RANGE", "座位号超出范围")
+	ErrDuplicateOps   = NewErr("PROTO_DUPLICATE_OPS", "存在重复的操作")
+	ErrWrongCardsNum  = NewErr("PROTO_WRONG_CARD_NUM", "卡牌数量不正确")
 )
 
 // ---------- 规则拒绝错误（rules 层）----------
-
 var (
-	ErrRuleIllegalPlay   = NewErr("RULE_ILLEGAL_PLAY", "illegal play")
-	ErrRuleIllegalFollow = NewErr("RULE_ILLEGAL_FOLLOW", "illegal follow")
-	ErrRuleIllegalTrump  = NewErr("RULE_ILLEGAL_TRUMP", "非法主牌")
-	ErrRuleIncomparable  = NewErr("RULE_INCOMPARABLE", "cards not comparable")
-	ErrRuleInvalidLevel  = NewErr("RULE_INVALID_LEVEL", "invalid level card")
-	ErrRuleInvalidJoker  = NewErr("RULE_INVALID_JOKER", "invalid joker")
+	ErrRuleIllegalPlay   = NewErr("RULE_ILLEGAL_PLAY", "出牌不符合规则")
+	ErrRuleIllegalFollow = NewErr("RULE_ILLEGAL_FOLLOW", "跟牌不符合规则")
+	ErrRuleIllegalTrump  = NewErr("RULE_ILLEGAL_TRUMP", "主牌使用不合法")
+	ErrRuleIncomparable  = NewErr("RULE_INCOMPARABLE", "所选卡牌无法比较")
+	ErrRuleInvalidLevel  = NewErr("RULE_INVALID_LEVEL", "等级牌不合法")
+	ErrRuleInvalidJoker  = NewErr("RULE_INVALID_JOKER", "王牌使用不合法")
 )
 
 // ---------- 状态机错误（game / engine 层）----------
-
 var (
-	ErrStateNotYourTurn = NewErr("STATE_NOT_YOUR_TURN", "not your turn")
-	ErrStateWrongPhase  = NewErr("STATE_WRONG_PHASE", "operation not allowed in current phase")
-	ErrStateNotSeated   = NewErr("STATE_NOT_SEATED", "player not seated")
-	ErrStateSeatTaken   = NewErr("STATE_Taken", "这个座位已经有人了")
-	ErrStateNotReady    = NewErr("STATE_NOT_READY", "player not ready")
+	ErrStateNotYourTurn = NewErr("STATE_NOT_YOUR_TURN", "未轮到你操作")
+	ErrStateWrongPhase  = NewErr("STATE_WRONG_PHASE", "当前阶段不允许该操作")
+	ErrStateNotSeated   = NewErr("STATE_NOT_SEATED", "玩家尚未入座")
+	ErrStateSeatTaken   = NewErr("STATE_TAKEN", "该座位已被占用")
+	ErrStateNotReady    = NewErr("STATE_NOT_READY", "玩家尚未准备")
 )
 
 // ---------- 系统错误（不可恢复，通常只记日志）----------
-
 var (
-	ErrSystem = NewErr("SYS_INTERNAL_ERROR", "internal server error")
+	ErrSystem = NewErr("SYS_INTERNAL_ERROR", "服务器内部错误")
+	ErrFatal  = NewErr("SYS_FATAL_ERROR", "服务器发生严重错误")
 )

@@ -4,6 +4,41 @@ import (
 	"upgrade-lan/internal/game/rules"
 )
 
+// --- PayLoad 校验 ---
+func validateLen(ids []int, want int) *AppError {
+	if len(ids) != want {
+		return ErrWrongCardsNum.WithInfof("需打出%d张牌！", want)
+	}
+	return nil
+}
+
+func validateLenIn(ids []int, a, b int) *AppError {
+	if len(ids) != a && len(ids) != b {
+		return ErrWrongCardsNum.WithInfof("需打出%d或%d张牌！", a, b)
+	}
+	return nil
+}
+
+func validateUnique(ids []int) *AppError {
+	seen := make(map[int]struct{}, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; ok {
+			return ErrDuplicateIDs.WithInfof("重复打出了牌，ID%d！", id)
+		}
+		seen[id] = struct{}{}
+	}
+	return nil
+}
+
+func validateNonEmpty(ids []int) *AppError {
+	if len(ids) == 0 {
+		return ErrEmptyCards.WithInfof("出牌数为0！")
+	}
+	return nil
+}
+
+// --- Reduce 工具函数 ---
+
 func allReady(st *GameState) bool {
 	for i := 0; i < 4; i++ {
 		if st.Seats[i].UID == "" || !st.Seats[i].Ready {
@@ -27,7 +62,7 @@ func seatIndexByUID(st *GameState, uid string) (int, *AppError) {
 			return i, nil
 		}
 	}
-	return -1, ErrStateNotSeated
+	return -1, ErrStateNotSeated.WithInfof("请先选择位置并准备")
 }
 
 type CardIndex map[int]rules.Card
@@ -75,12 +110,12 @@ func pickCardsFromHand(hand []rules.Card, selectedIDs []int) ([]rules.Card, *App
 	selectedCards := make([]rules.Card, 0, len(selectedIDs))
 	for _, id := range selectedIDs {
 		if seen[id] {
-			return nil, ErrDuplicateIDs.WithCause("重复打出相同牌")
+			return nil, ErrDuplicateIDs.WithInfof("重复打出了牌，ID%d", id)
 		}
 		seen[id] = true
 		c, ok := handIdx.Get(id)
 		if !ok {
-			return nil, ErrRuleIllegalPlay.WithCause("所出牌非手牌")
+			return nil, ErrRuleIllegalPlay.WithInfof("所出牌非手牌，ID%d", id)
 		}
 		selectedCards = append(selectedCards, c)
 	}

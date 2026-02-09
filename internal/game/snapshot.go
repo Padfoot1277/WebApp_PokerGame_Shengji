@@ -49,6 +49,11 @@ type ErrorMsg struct {
 	Message string `json:"message"`
 }
 
+type NoticeMsg struct {
+	Type    string `json:"type"`
+	Message string `json:"message"`
+}
+
 // MakeView 后端永远保存完整 state，但下发永远走 view
 func MakeView(st GameState, uid string) ViewState {
 	var seats [4]SeatView

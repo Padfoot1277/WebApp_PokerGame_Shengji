@@ -3,6 +3,7 @@ package room
 import (
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"upgrade-lan/internal/game"
 	"upgrade-lan/internal/game/rules"
 	"upgrade-lan/internal/transport"
@@ -103,17 +104,24 @@ func (r *Room) Run() {
 func (r *Room) handleEvent(c transport.Client, typ string, raw json.RawMessage) {
 	evType, payload, err := ParseClientEvent(typ, raw)
 	if err != nil {
+		slog.Warn(err.Error())
+		fmt.Println(err.Error())
 		_ = c.SendJSON(game.ErrorMsg{Type: "error", Message: err.Error()})
 		return
 	}
 	res, err := game.Reduce(r.state, c.UID(), evType, payload)
 	if err != nil {
-		fmt.Println(err, res.Notice)
+		slog.Warn(err.Error())
 		_ = c.SendJSON(game.ErrorMsg{Type: "error", Message: err.Error()})
 		return
 	}
+	if res.Notice != "" {
+		slog.Info(res.Notice)
+		for cc := range r.conns {
+			_ = cc.SendJSON(game.NoticeMsg{Type: "notice", Message: res.Notice})
+		}
+	}
 	if res.Changed {
-		fmt.Println(res.Notice)
 		r.state = res.State
 		r.broadcastSnapshot()
 	}
