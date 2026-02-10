@@ -5,10 +5,28 @@
 }
 
 html, body, #app {
-    height: 100%;
+    min-height: 100vh;
+    background: var(--bg-main);
 }
+
 
 button {
     font: inherit;
+    font-size: 17px;      /* ← 推荐 15px 或 16px */
+    font-weight: 500;     /* 稍微加粗，更像“操作按钮” */
     cursor: pointer;
+    background: #3a3a3a;        /* 比 panel 稍亮 */
+    color: var(--text-main);
+    border: 1px solid #4a4a4a;
+    border-radius: var(--radius);
+    padding: 6px 12px;
+}
+
+button:hover:not(:disabled) {
+    background: #444;
+}
+
+button:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
 }

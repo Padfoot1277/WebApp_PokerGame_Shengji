@@ -78,6 +78,30 @@ watch(
   margin-top: 8px;
 }
 
+.hand-area .card {
+  color: #000;
+  font-size: 20px;      /* ← 推荐 15px 或 16px */
+}
+
+.hand-area button {
+  background: #eeeeee;        /* 比普通按钮亮 */
+  border: 1px solid #5a5a5a;
+}
+
+.hand-area button:hover:not(:disabled) {
+  background: #e2e2e2; /* 轻微变暗即可 */
+}
+
+.hand-area button.selected {
+  background: #6b5cff;        /* 已选中的牌，更亮 */
+  border-color: #8a80ff;
+  color: #fff;
+}
+
+.hand-area button:disabled {
+  opacity: 0.35;
+}
+
 .cards {
   display: flex;
   flex-wrap: wrap;

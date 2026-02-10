@@ -4,12 +4,24 @@ import { useGameStore } from '../store/game'
 
 const game = useGameStore()
 
-const wsUrl = ref('ws://localhost:8080/ws')   // 按你的后端实际地址改
+const wsBase = ref('ws://192.168.1.109:8080/ws')
 const roomId = ref('room1')
 
+// 允许为空：为空则后端生成 anon-xxx
+const uid = ref(localStorage.getItem('uid') ?? '')
+
 function connect() {
-  if (!wsUrl.value) return
-  game.connect(`${wsUrl.value}?room=${roomId.value}`)
+  const room = encodeURIComponent(roomId.value.trim() || 'default')
+  const u = uid.value.trim()
+
+  // 只要用户填了，就传 uid；为空就不传，走后端默认
+  const url =
+      u.length > 0
+          ? `${wsBase.value}?room=${room}&uid=${encodeURIComponent(u)}`
+          : `${wsBase.value}?room=${room}`
+
+  localStorage.setItem('uid', u) // 记住上次输入（可为空）
+  game.connect(url)
 }
 </script>
 
@@ -18,38 +30,34 @@ function connect() {
     <h3>连接</h3>
 
     <div class="row">
-      <label>WS 地址</label>
-      <input v-model="wsUrl" />
+      <label>UID（可空）</label>
+      <input v-model="uid" placeholder="留空则采用随机值" />
     </div>
 
     <div class="row">
-      <label>房间</label>
+      <label>Room</label>
       <input v-model="roomId" />
     </div>
 
-    <button @click="connect" :disabled="game.connected">
-      {{ game.connected ? '已连接' : '连接' }}
+    <div class="row">
+      <label>WS</label>
+      <input v-model="wsBase" />
+    </div>
+
+    <button @click="connect">
+      连接
     </button>
 
-    <p v-if="game.uid">UID：{{ game.uid }}</p>
-    <p>WS：{{ game.wsStatus }}</p>
+    <div class="hint">
+      当前UID：{{ game.uid ?? '未连接' }}
+    </div>
   </div>
 </template>
 
 <style scoped>
-.panel {
-  background: var(--bg-panel);
-  padding: 12px;
-  border-radius: var(--radius);
-}
-
-.row {
-  display: flex;
-  gap: 8px;
-  margin-bottom: 8px;
-}
-
-input {
-  flex: 1;
-}
+.panel { background: var(--bg-panel); padding: 12px; border-radius: var(--radius); }
+.row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+label { width: 110px; color: var(--text-muted); font-size: 12px; }
+input { flex: 1; min-height: 36px; padding: 0 8px; }
+.hint { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
 </style>

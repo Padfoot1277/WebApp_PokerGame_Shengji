@@ -1,11 +1,12 @@
 .app-root {
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
-    height: 100%;
     background: var(--bg-main);
     color: var(--text-main);
 }
 
+/* 页面主体 */
 .view-container {
     flex: 1;
     display: flex;
@@ -14,10 +15,11 @@
     gap: var(--panel-gap);
 }
 
-/* 响应式基础断点 */
+/* 桌面端居中 */
 @media (min-width: 900px) {
     .view-container {
         max-width: 1200px;
         margin: 0 auto;
+        width: 100%;
     }
 }

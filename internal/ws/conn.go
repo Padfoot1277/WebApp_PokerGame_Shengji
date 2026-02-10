@@ -77,9 +77,9 @@ func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	uid := r.URL.Query().Get("uid")
+	uid := normalizeAnyUID(r.URL.Query().Get("uid"))
 	if uid == "" {
-		uid = "anon-" + time.Now().Format("150405.000")
+		uid = time.Now().Format("150405")
 	}
 	roomID := r.URL.Query().Get("room")
 	if roomID == "" {

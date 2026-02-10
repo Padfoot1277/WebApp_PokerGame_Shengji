@@ -20,7 +20,7 @@ const canSeeBottom = computed(() =>
 </script>
 
 <template>
-  <div class="panel">
+  <div v-if="phase === 'bottom'" class="panel">
     <h4>底牌</h4>
 
     <div v-if="canSeeBottom" class="cards">

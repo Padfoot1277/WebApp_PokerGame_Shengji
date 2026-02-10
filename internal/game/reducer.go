@@ -205,7 +205,7 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 			return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 		}
 
-		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("%s号位不定主", seat)}, nil
+		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("%d号位不定主", seat)}, nil
 
 	case EvCallTrump:
 		p := payload.(CallTrumpPayload)
@@ -342,7 +342,8 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 				TurnSeat:   st.StarterSeat,
 			}
 			st.Version++
-			return ReduceResult{State: st, Changed: true, Notice: notice + "。无人继续改/攻主，进入出牌阶段"}, nil
+			notice = fmt.Sprintf("%s。无人继续改/攻主，进入出牌阶段，由%d号位先手", notice, st.StarterSeat)
+			return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 		}
 		return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 

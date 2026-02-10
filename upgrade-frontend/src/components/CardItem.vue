@@ -1,5 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { suitToSymbol } from '../utils/card'
+
+const suitInfo = computed(() => suitToSymbol(props.card.suit))
 
 type Card = {
   id: number
@@ -16,17 +19,6 @@ const emit = defineEmits<{
   (e: 'toggle', id: number): void
 }>()
 
-const label = computed(() => {
-  const suitMap: Record<string, string> = {
-    S: '♠️',
-    H: '♥️',
-    C: '♣️',
-    D: '♦️',
-    SJ: '🃏',
-    BJ: '👑',
-  }
-  return `${suitMap[props.card.suit] ?? ''}${props.card.rank}`
-})
 </script>
 
 <template>
@@ -35,7 +27,15 @@ const label = computed(() => {
       :class="{ selected }"
       @click="emit('toggle', card.id)"
   >
-    {{ label }}
+  <span
+      class="suit"
+      :class="suitInfo.color"
+  >
+    {{ suitInfo.symbol }}
+  </span>
+    <span class="rank">
+    {{ card.rank }}
+  </span>
   </button>
 </template>
 
@@ -48,6 +48,23 @@ const label = computed(() => {
   background: #555;
   color: white;
   border: none;
+  font-size: 20px;
+}
+
+.suit.black {
+  color: #000;              /* 纯黑 */
+}
+
+.suit.red {
+  color: #e53935;           /* 稍亮的红，深色背景不刺眼 */
+}
+
+.suit.joker {
+  color: #ffd54f;           /* 金色，和👑协调 */
+}
+
+.rank {
+  margin-left: 2px;
 }
 
 .card.selected {

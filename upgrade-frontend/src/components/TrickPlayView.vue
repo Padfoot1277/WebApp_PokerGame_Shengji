@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import type { PropType } from 'vue'
+import { computed } from 'vue'
 import PlayedCardItem from './PlayedCardItem.vue'
 
 type Card = { id: number; suit: string; rank: string }
@@ -30,52 +31,60 @@ const props = defineProps({
   isLeader: { type: Boolean, default: false },
   isTurn: { type: Boolean, default: false },
 })
+
+const suitClassText = computed(() => props.move?.suitClass ?? '')
 </script>
 
 <template>
-  <div class="trick">
+  <div class="trick-mini">
     <div v-if="!move" class="empty">未出牌</div>
 
-    <div v-else>
-      <!-- 牌面展示（只读按钮） -->
+    <template v-else>
       <div class="cards">
-        <PlayedCardItem
-            v-for="c in move.followMove.cards"
-            :key="c.id"
-            :card="c"
-        />
+        <PlayedCardItem v-for="c in move.followMove.cards" :key="c.id" :card="c" />
       </div>
 
-      <!-- 可选：结构信息（辅助理解：单/对/拖拉机） -->
-      <div class="blocks">
-        <span
-            v-for="(group, gi) in move.followMove.blocks"
-            :key="gi"
-            class="block-group"
-        >
-          <span
-              v-for="(blk, bi) in group"
-              :key="bi"
-              class="block-chip"
-          >
-            {{ blk.type }}×{{ blk.cards.length }}
-          </span>
-        </span>
+      <div class="meta">
+        <span v-if="suitClassText" class="meta-item">🧩 {{ suitClassText }}</span>
+        <span v-if="move.info" class="meta-item">ℹ️ {{ move.info }}</span>
       </div>
-
-      <div class="tags">
-        <span v-if="props.isLeader" class="tag">先手</span>
-        <span v-if="props.isTurn" class="tag turn">当前轮到</span>
-        <span v-if="move.suitClass" class="tag muted">牌域：{{ move.suitClass }}</span>
-        <span v-if="move.info" class="tag muted">{{ move.info }}</span>
-      </div>
-    </div>
+    </template>
   </div>
 </template>
 
 <style scoped>
-.trick {
-  margin-top: 8px;
+/* 右上角浮层的“卡片” */
+.trick-mini {
+  width: 220px;              /* 你可以改 180/200/240 */
+  max-width: 60vw;
+  background: rgba(30, 30, 30, 0.9);
+  border: 1px solid #444;
+  border-radius: 10px;
+  padding: 6px;
+  font-size: 12px;
+}
+
+
+/* 标签行 */
+.topline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  background: #2e2e2e;
+  color: #eee;
+  line-height: 1.2;
+}
+.trick-mini {
+  margin-top: 6px;
   font-size: 12px;
 }
 
@@ -86,36 +95,17 @@ const props = defineProps({
 .cards {
   display: flex;
   flex-wrap: wrap;
-  margin-bottom: 4px;
+  gap: 4px;
 }
 
-.blocks {
-  margin-bottom: 4px;
+.meta {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
 }
 
-.block-chip {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #555;
-  margin-right: 4px;
-  margin-bottom: 4px;
-}
-
-.tags .tag {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #3a3a3a;
-  margin-right: 4px;
-  margin-bottom: 4px;
-}
-
-.tags .turn {
-  border: 1px solid #4da3ff;
-}
-
-.tags .muted {
+.meta-item {
   color: var(--text-muted);
 }
 </style>

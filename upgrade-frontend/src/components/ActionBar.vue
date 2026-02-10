@@ -64,7 +64,10 @@ const canAttackTrumpNow = computed(() =>
 const canCallPassNow = computed(() => {
   if (mySeat.value < 0) return false
   if (phase.value === 'call_trump') return !v.value.callPassedSeats[mySeat.value]
-  if (phase.value === 'trump_fight') return !v.value.fightPassedSeats[mySeat.value]
+  if (phase.value === 'trump_fight') {
+    if (mySeat.value === v.value.bottomOwnerSeat) return false
+    return !v.value.fightPassedSeats[mySeat.value]
+  }
   return false
 })
 

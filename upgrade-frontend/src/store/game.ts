@@ -68,5 +68,13 @@ export const useGameStore = defineStore('game', {
                 this.messages.shift()
             }
         },
+
+        disconnect() {
+            // 需要 wsService.close() 已实现
+            // 断开后等待用户再次 connect
+            // 可选：是否清空 view 由你决定（建议不清空，让用户还能看到上一帧）
+            wsService.close()
+            this.wsStatus = 'closed'
+        },
     },
 })

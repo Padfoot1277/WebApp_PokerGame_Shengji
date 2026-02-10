@@ -40,9 +40,9 @@ function startGame() {
       取消准备
     </button>
 
-    <button @click="startGame">
-      开始游戏
-    </button>
+<!--    <button @click="startGame">-->
+<!--      开始游戏-->
+<!--    </button>-->
   </div>
 </template>
 
