@@ -23,6 +23,8 @@ func Reduce(st GameState, uid string, typ ClientEventType, payload any) (ReduceR
 		return reduceTrumpFight(st, uid, typ, payload)
 	case PhasePlayTrick:
 		return reducePlayTrick(st, uid, typ, payload)
+	case PhaseRoundSettle:
+		return reduceStartNextRound(st, uid, typ, payload)
 	default:
 		return ReduceResult{State: st, Changed: false}, ErrStateWrongPhase.WithInfof("非法游戏阶段 %s", st.Phase)
 	}
@@ -417,9 +419,15 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 
 func reducePlayTrick(st GameState, uid string, typ ClientEventType, payload any) (ReduceResult, *AppError) {
 	// 合法校验
+	if st.Phase != PhasePlayTrick {
+		return ReduceResult{State: st}, ErrUnknownEvent.WithInfo("当前不在出牌阶段")
+	}
 	seat, err := seatIndexByUID(&st, uid)
 	if err != nil {
 		return ReduceResult{State: st}, err
+	}
+	if st.Trick.TurnSeat < 0 {
+		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfo("本小局已结束，等待结算")
 	}
 	if seat != st.Trick.TurnSeat {
 		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请先等待玩家%v出牌", st.Trick.TurnSeat)
@@ -653,7 +661,7 @@ func settleTrickEnd(st *GameState) string {
 		st.Points += points
 	}
 
-	// 准备下一墩：winner 先手
+	// 准备下一墩：先把本墩搬到 LastPlays，再清空 Plays
 	tr.LeaderSeat = winner
 	tr.TurnSeat = winner
 	tr.BiggerSeat = -1
@@ -663,9 +671,178 @@ func settleTrickEnd(st *GameState) string {
 	}
 	tr.Throw = nil
 
-	notice := fmt.Sprintf("本墩结束，赢家=%d号位，得分=%d，小局总分=%d", winner, points, st.Points)
+	st.TrickIndex++
+	notice := ""
 	if inCallerGroup(st, winner) {
-		notice = fmt.Sprintf("本墩结束，赢家=玩家%d，打家不得分", winner)
+		notice = fmt.Sprintf("本墩结束，赢家=%d号位（坐家），打家不得分", winner)
+	} else {
+		notice = fmt.Sprintf("本墩结束，赢家=%d号位（打家），本墩得分=%d，打家累计分=%d", winner, points, st.Points)
+	}
+
+	// 末墩抠底：在“所有人手牌为空”时触发
+	if isLastTrickAfterThisTrick(st) {
+		st.Trick.TurnSeat = -1
+		digNotice := settleDigBottom(st, winner)
+		notice += "；" + digNotice
+		roundNotice := settleRoundEnd(st)
+		if roundNotice != "" {
+			notice += "；" + roundNotice
+		}
+	}
+
+	return notice
+}
+
+func settleDigBottom(st *GameState, winner int) string {
+	if st.BottomRevealed { // 幂等：防重复触发
+		return ""
+	}
+	st.BottomRevealed = true
+
+	base := rules.TrickPoints(st.Bottom) // 底牌分（5/10/K）
+	mul := 1
+	if winner >= 0 && winner < 4 {
+		if pm := st.Trick.LastPlays[winner]; pm != nil {
+			// 推荐：用“牌张数/是否对子”判倍率，比 block type 更稳
+			// mul = rules.DigMultiplierByCards(pm.Cards) // 你可以在 rules 里实现这个
+			if len(pm.Blocks) > 0 && len(pm.Blocks[0]) > 0 {
+				mul = rules.DigMultiplierByWinnerMove(pm.Blocks[0][0].Type)
+			}
+		}
+	}
+	award := base * mul
+
+	st.BottomPoints = base
+	st.BottomMul = mul
+	if !inCallerGroup(st, winner) {
+		st.Points += award
+		st.BottomAward = award
+	} else {
+		st.BottomAward = 0
+	}
+
+	st.BottomReveal = append([]rules.Card(nil), st.Bottom...)
+
+	if inCallerGroup(st, winner) {
+		return fmt.Sprintf("赢家=玩家%d（坐家）,打家不可挖底", winner)
+	}
+	return fmt.Sprintf("末墩抠底：赢家=玩家%d（打家），底牌分=%d×%d，打家累计分=%d", winner, base, mul, st.Points)
+}
+
+func settleRoundEnd(st *GameState) string {
+	if st.Phase == PhaseRoundSettle {
+		return ""
+	}
+	out := computeRoundOutcome(st)
+
+	// callerTeam 以 GameState.CallerSeat 所在队为准（硬主也成立）
+	cs := st.CallerSeat
+	if cs < 0 || cs > 3 {
+		return fmt.Sprintf("Fatal! CallerSeat非法取值:%d", cs)
+	}
+	callerTeam := st.Seats[cs].Team
+	defTeam := 1 - callerTeam
+
+	// 写入升级
+	st.Teams[callerTeam].LevelRank = rules.AddRank(st.Teams[callerTeam].LevelRank, out.CallerDelta)
+	st.Teams[defTeam].LevelRank = rules.AddRank(st.Teams[defTeam].LevelRank, out.DefenderDelta)
+	// 写入下一局先手
+	st.NextStarterSeat = out.NextStarterSeat
+	st.CallMode = CallModeOrdered
+	// 给前端展示用字段
+	st.RoundPointsFinal = st.Points
+	st.RoundResultLabel = out.Label
+	st.CallerDelta = out.CallerDelta
+	st.DefenderDelta = out.DefenderDelta
+
+	// 切 phase：等待 nextStarter 点击开始下一局
+	st.Phase = PhaseRoundSettle
+
+	// 注意：这里不清 Points/Trick 等，让前端还能看到本局结果
+	notice := fmt.Sprintf(
+		"小局结束：打家得分=%d，结果=%s；坐家(+%d) 打家(+%d)；下一局先手定主权=玩家%d（需其点击开始下一局）",
+		st.RoundPointsFinal, st.RoundResultLabel, st.CallerDelta, st.DefenderDelta, st.NextStarterSeat,
+	)
+	if st.Points >= 80 {
+		notice += fmt.Sprintf("（让先手：起点从本局CallerSeat=%d顺延到%d，按序定主可能仍定不起）", st.CallerSeat, st.NextStarterSeat)
 	}
 	return notice
+}
+
+func computeRoundOutcome(st *GameState) RoundOutcome {
+	p := st.Points
+	callerSeat := st.CallerSeat
+	nextSeat := callerSeat
+	if p >= 80 {
+		nextSeat = (callerSeat + 1) % 4
+	}
+	// 0 分光头必须单独判定，避免被 <40 吞掉
+	if p == 0 {
+		return RoundOutcome{"光头", 3, 0, nextSeat} // nextSeat 在 p>=80? 不会，0<80，因此仍是 callerSeat
+	}
+	if p >= 200 {
+		return RoundOutcome{"满分", 0, 3, nextSeat}
+	}
+	if p >= 160 {
+		return RoundOutcome{"大胜", 0, 2, nextSeat}
+	}
+	if p >= 120 {
+		return RoundOutcome{"过大关", 0, 1, nextSeat}
+	}
+	if p >= 80 {
+		return RoundOutcome{"换坐", 0, 0, nextSeat}
+	} // 仅让先手
+	if p >= 40 {
+		return RoundOutcome{"过小关", 1, 0, nextSeat}
+	}
+	return RoundOutcome{"不过小关", 2, 0, nextSeat} // 1–39
+}
+
+func reduceStartNextRound(st GameState, uid string, typ ClientEventType, payload any) (ReduceResult, *AppError) {
+	if typ != EvStartNextRound {
+		return ReduceResult{State: st}, ErrUnknownEvent.WithInfof("非法事件 %s", typ)
+	}
+	if st.Phase != PhaseRoundSettle {
+		return ReduceResult{State: st}, ErrUnknownEvent.WithInfo("当前不在小局结算阶段")
+	}
+	seat, err := seatIndexByUID(&st, uid)
+	if err != nil {
+		return ReduceResult{State: st}, err
+	}
+	if seat != st.NextStarterSeat {
+		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请等待%d号位开始下一局", st.NextStarterSeat)
+	}
+	// ---- 跨小局推进：RoundIndex + 清场 ----
+	st.RoundIndex++
+
+	// 下一局 ordered 定主起点：CallerSeat = NextStarterSeat
+	st.CallerSeat = st.NextStarterSeat
+	st.CallTurnSeat = st.NextStarterSeat
+	st.CallPassMask = 0
+	st.CallPassCount = 0
+	st.FightPassMask = 0
+	st.FightPassCount = 0
+
+	// 清理本局积分与末墩信息（你若实现了底牌公开/抠底字段，也在这里清）
+	st.Points = 0
+	st.RoundPointsFinal = 0
+	st.RoundResultLabel = ""
+	st.CallerDelta = 0
+	st.DefenderDelta = 0
+
+	// 清理回合状态
+	st.TrickIndex = 0
+	st.Trick = TrickState{} // 下一局进入 PhasePlayTrick 时再初始化
+	st.BottomOwnerSeat = -1
+	st.BottomCount = 0
+	// st.Bottom / st.Seats[i].Hand 等会在发牌时覆盖（Bottom 是 json:"-" 私有字段）
+
+	// 清理 Trump（下一局重新定主）
+	st.Trump = TrumpState{CallerSeat: -1}
+
+	// 发牌
+	st.Phase = PhaseDealing
+	startDeal(&st)
+	notice := fmt.Sprintf("玩家%d开始下一小局（第%d局），%d号位优先定主", seat, st.RoundIndex, st.CallerSeat)
+	return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 }

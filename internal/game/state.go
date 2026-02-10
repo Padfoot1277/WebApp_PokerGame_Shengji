@@ -5,12 +5,13 @@ import "upgrade-lan/internal/game/rules"
 type Phase string
 
 const (
-	PhaseLobby      Phase = "lobby"
-	PhaseDealing    Phase = "dealing"
-	PhaseCallTrump  Phase = "call_trump"
-	PhaseBottom     Phase = "bottom"
-	PhaseTrumpFight Phase = "trump_fight"
-	PhasePlayTrick  Phase = "play_trick"
+	PhaseLobby       Phase = "lobby"
+	PhaseDealing     Phase = "dealing"
+	PhaseCallTrump   Phase = "call_trump"
+	PhaseBottom      Phase = "bottom"
+	PhaseTrumpFight  Phase = "trump_fight"
+	PhasePlayTrick   Phase = "play_trick"
+	PhaseRoundSettle Phase = "round_settle"
 )
 
 type SeatState struct {
@@ -72,6 +73,13 @@ type TrickState struct {
 	LastPlays [4]*PlayedMove `json:"lastMoves"` // 上一回合的出牌记录
 }
 
+type RoundOutcome struct {
+	Label           string
+	CallerDelta     int // 坐家队升级
+	DefenderDelta   int // 打家队升级
+	NextStarterSeat int
+}
+
 type GameState struct {
 	RoomID  string `json:"roomId"`
 	Phase   Phase  `json:"phase"`
@@ -112,4 +120,9 @@ type GameState struct {
 	BottomMul      int          `json:"bottomMul"`              // 倍率（2/4/1）
 	BottomAward    int          `json:"bottomAward"`            // 实际加到 st.Points 的分（含倍率，且只在打家得分时生效）
 
+	// ---- 小局结算展示 ----
+	RoundPointsFinal int    `json:"roundPointsFinal"` // = Points（结算时拷贝）
+	RoundResultLabel string `json:"roundResultLabel"` // 满分/大胜/过大关/换坐/过小关/不过小关/光头
+	CallerDelta      int    `json:"callerDelta"`      // 坐家升级
+	DefenderDelta    int    `json:"defenderDelta"`    // 打家升级
 }

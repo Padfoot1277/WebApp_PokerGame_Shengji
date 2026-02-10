@@ -8,7 +8,8 @@ const (
 	EvReady   ClientEventType = "room.ready"
 	EvUnready ClientEventType = "room.unready"
 
-	EvStart ClientEventType = "game.start"
+	EvStart          ClientEventType = "game.start"
+	EvStartNextRound ClientEventType = "game.start_next_round"
 
 	EvCallTrump   ClientEventType = "game.call_trump"
 	EvCallPass    ClientEventType = "game.call_pass"
