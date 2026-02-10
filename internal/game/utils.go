@@ -50,10 +50,12 @@ func allReady(st *GameState) bool {
 
 // TeamOfSeat seat0&2 -> team0; seat1&3 -> team1
 func TeamOfSeat(seat int) int {
-	if seat%2 == 0 {
-		return 0
-	}
-	return 1
+	return seat % 2
+}
+
+func inCallerGroup(st *GameState, seat int) bool {
+	caller := st.CallerSeat
+	return seat%2 == caller%2
 }
 
 func seatIndexByUID(st *GameState, uid string) (int, *AppError) {
@@ -106,9 +108,9 @@ func refreshHandSuitClassForUI(st *GameState) {
 	}
 }
 
-// pickCardsFromHand 传入牌号，返回牌组
-func pickCardsFromHand(hand []rules.Card, selectedIDs []int) ([]rules.Card, *AppError) {
-	handIdx := NewCardIndex(hand)
+// pickCards 传入牌号，返回牌组
+func pickCards(cards []rules.Card, selectedIDs []int) ([]rules.Card, *AppError) {
+	handIdx := NewCardIndex(cards)
 	seen := map[int]bool{}
 	selectedCards := make([]rules.Card, 0, len(selectedIDs))
 	for _, id := range selectedIDs {
@@ -125,8 +127,8 @@ func pickCardsFromHand(hand []rules.Card, selectedIDs []int) ([]rules.Card, *App
 	return selectedCards, nil
 }
 
-// deleteCardFromHand 从手牌中删除所选牌（selected）
-func deleteCardsFromHand(hand []rules.Card, ids []int) []rules.Card {
+// deleteCard 从手牌中删除所选牌（selected）
+func deleteCards(hand []rules.Card, ids []int) []rules.Card {
 	if len(ids) == 0 {
 		return hand
 	}
@@ -155,4 +157,22 @@ func cloneMove(m Move) Move {
 	cp.CardIDs = append([]int(nil), m.CardIDs...)
 	cp.Cards = append([]rules.Card(nil), m.Cards...)
 	return cp
+}
+
+func isTrickComplete(tr *TrickState) bool {
+	for i := 0; i < 4; i++ {
+		if tr.Plays[i] == nil {
+			return false
+		}
+	}
+	return true
+}
+
+func isLastTrickAfterThisTrick(st *GameState) bool {
+	for i := 0; i < 4; i++ {
+		if st.Seats[i].HandCount != 0 {
+			return false
+		}
+	}
+	return true
 }

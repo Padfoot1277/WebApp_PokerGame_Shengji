@@ -41,7 +41,7 @@ func NewRoom(id string) *Room {
 
 	st.RoundIndex = 0
 	st.NextStarterSeat = 0 // 后续小局用（结算写回）
-	st.StarterSeat = -1    //
+	st.CallerSeat = -1     //
 	st.CallTurnSeat = -1   // 首局抢定主不需要turn
 	st.CallPassCount = 0
 	st.CallPassMask = 0

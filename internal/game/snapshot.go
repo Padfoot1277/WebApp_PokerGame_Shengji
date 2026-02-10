@@ -24,8 +24,9 @@ type ViewState struct {
 	FightPassCount   int      `json:"fightPassCount"`
 	BottomOwnerSeat  int      `json:"bottomOwnerSeat"`
 
-	Trump TrumpState `json:"trump"`
-	Trick TrickState `json:"trick"` // 全部可见
+	Trump  TrumpState `json:"trump"`
+	Trick  TrickState `json:"trick"`  // 全部可见
+	Points int        `json:"points"` // 每小局打家的得分
 
 	MySeat   int          `json:"mySeat"`
 	MyBottom []rules.Card `json:"myBottom"` // 仅在 PhaseBottom 本人可见
@@ -103,7 +104,7 @@ func MakeView(st GameState, uid string) ViewState {
 		CallMode:        st.CallMode,
 		CallPassedSeats: passed,
 
-		StarterSeat:   st.StarterSeat,
+		StarterSeat:   st.CallerSeat,
 		CallTurnSeat:  st.CallTurnSeat,
 		CallPassCount: st.CallPassCount,
 
@@ -117,7 +118,8 @@ func MakeView(st GameState, uid string) ViewState {
 		MyBottom: myBottom,
 		MyHand:   myHand,
 
-		Trick: st.Trick,
+		Trick:  st.Trick,
+		Points: st.Points,
 	}
 }
 

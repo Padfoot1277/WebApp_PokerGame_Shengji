@@ -20,7 +20,7 @@ const (
 	BlockTractor BlockType = "tractor"
 )
 
-// Block 基础牌型
+// Block 基础牌组
 type Block struct {
 	Type       BlockType `json:"type"`
 	SuitClass  SuitClass `json:"suitClass"`
@@ -93,9 +93,9 @@ func ComputeSuitClassAllSame(selected []Card) (SuitClass, bool) {
 }
 
 // FindBlocksInHand 在手牌中寻找某一牌型并排序
-func FindBlocksInHand(hand []Card, t Trump, suitClass SuitClass, bt BlockType, tractorLen int) ([]Block, error) {
+func FindBlocksInHand(hand []Card, t Trump, sc SuitClass, bt BlockType, tractorLen int) ([]Block, error) {
 	// 筛选牌域
-	cards := filterBySuitClass(hand, suitClass)
+	cards := filterBySuitClass(hand, sc)
 	// 寻找牌型
 	blocks := make([]Block, 0, len(cards))
 	switch bt {
@@ -103,7 +103,7 @@ func FindBlocksInHand(hand []Card, t Trump, suitClass SuitClass, bt BlockType, t
 		for _, c := range cards {
 			blocks = append(blocks, Block{
 				Type:       BlockSingle,
-				SuitClass:  suitClass,
+				SuitClass:  sc,
 				RankValue:  rankValue(c, t),
 				TractorLen: 0,
 				Cards:      []Card{c},
@@ -115,26 +115,48 @@ func FindBlocksInHand(hand []Card, t Trump, suitClass SuitClass, bt BlockType, t
 		}
 		return blocks, nil
 	case BlockPair:
-		return buildPairs(cards, t, suitClass)
+		return buildPairs(cards, t, sc)
 	case BlockTractor:
 		if tractorLen < 2 {
 			return nil, fmt.Errorf("要查找的牌型非法，拖拉机长度应大于1")
 		}
-		return buildTractors(cards, t, suitClass, tractorLen)
+		return buildTractors(cards, t, sc, tractorLen)
 	default:
 		return nil, fmt.Errorf("要查找的牌型非法")
 	}
 }
 
 // filterBySuitClass 获取手牌中某个牌域的所有牌
-func filterBySuitClass(hand []Card, suitClass SuitClass) []Card {
-	cards := make([]Card, 0, len(hand))
-	for _, c := range hand {
-		if c.SuitClass == suitClass {
-			cards = append(cards, c)
+func filterBySuitClass(cards []Card, sc SuitClass) []Card {
+	out := make([]Card, 0, len(cards))
+	for _, c := range cards {
+		if c.SuitClass == sc {
+			out = append(out, c)
 		}
 	}
-	return cards
+	return out
+}
+
+// countBySuitClass 手牌中的牌域计数
+func countBySuitClass(cards []Card, sc SuitClass) int {
+	n := 0
+	for _, c := range cards {
+		if c.SuitClass == sc {
+			n++
+		}
+	}
+	return n
+}
+
+// countBlocksCards blocks手牌数
+func countBlocksCards(leadMove [][]Block) int {
+	total := 0
+	for _, blocks := range leadMove {
+		for _, block := range blocks {
+			total += len(block.Cards)
+		}
+	}
+	return total
 }
 
 // buildPairs 在同牌域中寻找对子（同名牌对：ID 相差 54）
@@ -291,4 +313,18 @@ func DecomposeThrow(selected []Card, t Trump, suitClass SuitClass) ([][]Block, e
 		out = append(out, singleBlocks)
 	}
 	return out, nil
+}
+
+// ClassifyPaddingAndComparable 判断牌域可比性
+// - 混牌域、其它副牌域：垫牌，不可比
+// - 同域(leadSC)、全主(SCTrump)：可比
+func ClassifyPaddingAndComparable(selected []Card, leadSC SuitClass) (padding bool, comparable bool, moveSC SuitClass) {
+	sc, ok := ComputeSuitClassAllSame(selected)
+	if !ok || sc == SCMix {
+		return true, false, SCMix
+	}
+	if sc == leadSC || sc == SCTrump {
+		return false, true, sc
+	}
+	return true, false, sc
 }

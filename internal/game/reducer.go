@@ -125,13 +125,13 @@ func startDeal(st *GameState) {
 	if st.RoundIndex == 0 {
 		// 第一小局：抢定主
 		st.CallMode = CallModeRace
-		st.StarterSeat = -1
+		st.CallerSeat = -1
 		st.CallTurnSeat = -1
 	} else {
 		// 后续小局：按上一小局结果决定优先权
 		st.CallMode = CallModeOrdered
-		st.StarterSeat = st.NextStarterSeat
-		st.CallTurnSeat = st.StarterSeat
+		st.CallerSeat = st.NextStarterSeat
+		st.CallTurnSeat = st.CallerSeat
 	}
 
 	st.Trump = TrumpState{
@@ -142,6 +142,7 @@ func startDeal(st *GameState) {
 		Locked:     false,
 		CallerSeat: -1,
 	}
+	st.Points = 0
 
 	// 发牌结束后进入下一阶段（定主）
 	st.Phase = PhaseCallTrump
@@ -158,8 +159,8 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 			return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请等待%v号位定主", st.CallTurnSeat)
 		}
 	}
-	if st.CallMode == CallModeRace && st.StarterSeat >= 0 {
-		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("手慢啦，%v号位已定主", st.StarterSeat)
+	if st.CallMode == CallModeRace && st.CallerSeat >= 0 {
+		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("手慢啦，%v号位已定主", st.CallerSeat)
 	}
 
 	switch typ {
@@ -184,9 +185,9 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 
 			leaderSeat := 0 // 首局抢定主失败时，先手按 seat0
 			if st.CallMode == CallModeOrdered {
-				leaderSeat = st.StarterSeat
+				leaderSeat = st.CallerSeat
 			}
-			st.StarterSeat = leaderSeat
+			st.CallerSeat = leaderSeat
 			leaderTeam := st.Seats[leaderSeat].Team
 			st.Trump.LevelRank = st.Teams[leaderTeam].LevelRank
 
@@ -197,8 +198,9 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 			st.BottomOwnerSeat = -1
 			st.Phase = PhasePlayTrick
 			st.Trick = TrickState{
-				LeaderSeat: st.StarterSeat,
-				TurnSeat:   st.StarterSeat,
+				LeaderSeat: st.CallerSeat,
+				TurnSeat:   st.CallerSeat,
+				BiggerSeat: -1,
 			}
 			st.Version++
 			notice := fmt.Sprintf("无人定主，本小局硬主，级牌为%s", st.Trump.LevelRank)
@@ -235,7 +237,7 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 		st.Trump.LevelRank = teamLevel
 		st.Trump.Locked = locked
 		st.Trump.CallerSeat = seat
-		st.StarterSeat = seat
+		st.CallerSeat = seat
 
 		// 修改每张牌的牌域，手牌按“本小局最终级牌 + 主花色”重排
 		refreshHandSuitClassForUI(&st)
@@ -283,12 +285,12 @@ func reduceBottom(st GameState, uid string, typ ClientEventType, payload any) (R
 		if len(hand) != 33 {
 			return ReduceResult{State: st}, ErrRuleIllegalPlay.WithInfof("当前手牌数为%d，无法扣牌", len(hand))
 		}
-		newBottom, err := pickCardsFromHand(hand, p.DiscardIDs)
+		newBottom, err := pickCards(hand, p.DiscardIDs)
 		if err != nil {
 			return ReduceResult{State: st}, err
 		}
 		// 从手牌移除这8张 -> 回到25
-		keep := deleteCardsFromHand(hand, p.DiscardIDs)
+		keep := deleteCards(hand, p.DiscardIDs)
 		st.Seats[seat].Hand = keep
 		st.Seats[seat].HandCount = 25
 		st.Bottom = newBottom
@@ -338,11 +340,12 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		if st.FightPassCount >= 3 {
 			st.Phase = PhasePlayTrick
 			st.Trick = TrickState{
-				LeaderSeat: st.StarterSeat,
-				TurnSeat:   st.StarterSeat,
+				LeaderSeat: st.CallerSeat,
+				TurnSeat:   st.CallerSeat,
+				BiggerSeat: -1,
 			}
 			st.Version++
-			notice = fmt.Sprintf("%s。无人继续改/攻主，进入出牌阶段，由%d号位先手", notice, st.StarterSeat)
+			notice = fmt.Sprintf("%s。无人继续改/攻主，进入出牌阶段，由%d号位先手", notice, st.CallerSeat)
 			return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 		}
 		return ReduceResult{State: st, Changed: true, Notice: notice}, nil
@@ -370,7 +373,7 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		if err != nil {
 			return ReduceResult{State: st}, ErrRuleIllegalTrump.WithInfo(err.Error())
 		}
-		// 改主成功：只改主花色，不改 LevelRank / StarterSeat
+		// 改主成功：只改主花色，不改 LevelRank / CallerSeat
 		st.Trump.HasTrumpSuit = true
 		st.Trump.Suit = trumpSuit
 		refreshHandSuitClassForUI(&st)
@@ -396,7 +399,7 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		if err != nil {
 			return ReduceResult{State: st}, ErrRuleIllegalTrump.WithInfo(err.Error())
 		}
-		// 攻主成功：进入硬主（只影响主花色体系），不改 LevelRank/StarterSeat。此后不可以再改主
+		// 攻主成功：进入硬主（只影响主花色体系），不改 LevelRank/CallerSeat。此后不可以再改主
 		st.Trump.HasTrumpSuit = false
 		st.Trump.Suit = ""
 		st.Trump.Locked = true
@@ -426,64 +429,47 @@ func reducePlayTrick(st GameState, uid string, typ ClientEventType, payload any)
 	}
 	p := payload.(PlayCardsPayload)
 	// 根据cardID，从手牌中获取card
-	selected, err := pickCardsFromHand(st.Seats[seat].Hand, p.CardIDs)
+	selected, err := pickCards(st.Seats[seat].Hand, p.CardIDs)
 	if err != nil {
 		return ReduceResult{State: st}, err
 	}
 	switch typ {
 	case EvPlayCards:
-		currentMove := PlayedMove{Seat: seat}
+		currentMove := PlayedMove{}
 		if seat == st.Trick.LeaderSeat {
-			// 先手约束：必须全是同SuitClass（同副花色 或 全主）
-			sc, ok := rules.ComputeSuitClassAllSame(selected)
-			if !ok {
-				return ReduceResult{State: st}, ErrRuleIllegalPlay.WithInfo("所出牌的牌域不一致")
-			}
-			// 将所出牌解析为多组Block，同一种牌型归于一组
-			blockGroups, decomposeErr := rules.DecomposeThrow(selected, st.Trump.Trump, sc)
-			if decomposeErr != nil {
-				return ReduceResult{State: st}, ErrRuleIllegalPlay.WithInfo(decomposeErr.Error())
-			}
-			currentMove.SuitClass = sc
-			currentMove.Move = Move{
-				Blocks:  blockGroups,
-				CardIDs: p.CardIDs,
-				Cards:   selected,
-			}
-			// 如果有多种牌型，或者有多个同牌型，则视为甩牌，需进行判定并调整leadMove
-			if len(blockGroups) > 1 || len(blockGroups[0]) > 1 {
-				throwMove := ThrowMove{
-					IsThrow:    true,
-					IntentMove: cloneMove(currentMove.Move),
-				}
-				// 甩牌判定，若失败则更新selected，blockGroups
-				throwOK, actualMove, info, err := canonicalizeLead(st, seat, sc, throwMove.IntentMove)
-				if err != nil {
-					return ReduceResult{State: st}, err
-				}
-				throwMove.ThrowOK = throwOK
-				st.Trick.Throw = &throwMove
-				// 若甩牌失败，重新修改出牌
-				if !throwOK {
-					currentMove.Move = actualMove
-					currentMove.Info = info
-				}
+			// 先手出牌处理
+			currentMove, err = leadPlayTrick(&st, seat, selected)
+			if err != nil {
+				return ReduceResult{State: st}, err
 			}
 		} else {
-			// 跟牌判定，暂时跳过
-
+			// 后手跟牌处理
+			currentMove, err = followTrick(&st, seat, selected)
+			if err != nil {
+				return ReduceResult{State: st}, err
+			}
 		}
 		// 从手牌移除实际出的牌
-		st.Seats[seat].Hand = deleteCardsFromHand(st.Seats[seat].Hand, currentMove.CardIDs)
+		st.Seats[seat].Hand = deleteCards(st.Seats[seat].Hand, currentMove.CardIDs)
 		st.Seats[seat].HandCount = len(st.Seats[seat].Hand)
-		// 更新trick
+		// 更新 trick
 		st.Trick.Plays[seat] = &currentMove
-		st.Trick.TurnSeat = (seat + 1) % 4
-		st.Version++
 		notice := fmt.Sprintf("玩家%d已出牌", seat)
 		if currentMove.Info != "" {
 			notice += fmt.Sprintf("【%s】", currentMove.Info)
 		}
+		// 如果本墩已打满，则回合结算并设置下一墩先手/turnSeat
+		if isTrickComplete(&st.Trick) {
+			settleNotice := settleTrickEnd(&st)
+			if settleNotice != "" {
+				notice += "，" + settleNotice
+			}
+			st.Version++
+			return ReduceResult{State: st, Changed: true, Notice: notice}, nil
+		}
+		// 否则轮到下家
+		st.Trick.TurnSeat = (seat + 1) % 4
+		st.Version++
 		return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 
 	default:
@@ -491,9 +477,59 @@ func reducePlayTrick(st GameState, uid string, typ ClientEventType, payload any)
 	}
 }
 
+// leadPlayTrick 先手出牌处理
+func leadPlayTrick(st *GameState, seat int, selected []rules.Card) (PlayedMove, *AppError) {
+	// 先手约束：必须全是同SuitClass（同副花色 或 全主）
+	sc, ok := rules.ComputeSuitClassAllSame(selected)
+	if !ok {
+		return PlayedMove{}, ErrRuleIllegalPlay.WithInfo("所出牌的牌域不一致")
+	}
+	// 将所出牌解析为多组Block，同一种牌型归于一组
+	blockGroups, decomposeErr := rules.DecomposeThrow(selected, st.Trump.Trump, sc)
+	if decomposeErr != nil {
+		return PlayedMove{}, ErrRuleIllegalPlay.WithInfo(decomposeErr.Error())
+	}
+	currentMove := PlayedMove{
+		Seat:      seat,
+		SuitClass: sc,
+		Move: Move{
+			Blocks:  blockGroups,
+			CardIDs: getIDs(selected),
+			Cards:   selected,
+		},
+	}
+	// 如果有多种牌型，或者有多个同牌型，则视为甩牌，需进行判定并调整leadMove
+	if len(blockGroups) > 1 || len(blockGroups[0]) > 1 {
+		throwMove := ThrowMove{
+			IsThrow:    true,
+			IntentMove: cloneMove(currentMove.Move),
+		}
+		// 甩牌判定，若失败则更新selected，blockGroups
+		throwOK, actualMove, info, err := canonicalizeLead(st, currentMove.Seat, sc, throwMove.IntentMove)
+		if err != nil {
+			return PlayedMove{}, err
+		}
+		throwMove.ThrowOK = throwOK
+		st.Trick.Throw = &throwMove
+		// 若甩牌失败，重新修改出牌
+		if !throwOK {
+			currentMove.Move = actualMove
+			currentMove.Info = info
+		}
+	}
+	// 出牌后，将上一回合的延迟状态清空（便于前端展示）
+	for i := 0; i < 4; i++ {
+		st.Trick.LastPlays[i] = nil
+	}
+	st.Trick.BiggerSeat = seat
+	st.Trick.Resolved = false
+	st.Trick.WinnerSeat = -1
+	return currentMove, nil
+}
+
 // canonicalizeLead 对先手选牌进行甩牌判定
 // 返回：是否甩牌成功、最终出牌、失败原因，错误
-func canonicalizeLead(st GameState, leaderSeat int, sc rules.SuitClass, intentMove Move) (bool, Move, string, *AppError) {
+func canonicalizeLead(st *GameState, leaderSeat int, sc rules.SuitClass, intentMove Move) (bool, Move, string, *AppError) {
 	// 对每一种牌型（每个组），取甩牌中该组最小的，与对手最大比
 	groups := intentMove.Blocks
 	for off := 1; off <= 3; off++ {
@@ -529,4 +565,107 @@ func canonicalizeLead(st GameState, leaderSeat int, sc rules.SuitClass, intentMo
 	}
 	// 无人可压，甩牌成功
 	return true, intentMove, "甩牌成功", nil
+}
+
+// followTrick 后手跟牌处理
+// 跟牌合法性（是否藏牌）：必须“尽可能满足”先手要求（同牌域/主牌域内），并且满足的形态受“优先同牌型，否则次级牌型”约束。
+// 跟牌比较性（是否参与赢墩比较）：只有“整手不垫牌”（同牌域，或全主）时，才进入牌型一致/可比、以及 BiggerSeat 更新。
+func followTrick(st *GameState, seat int, selected []rules.Card) (PlayedMove, *AppError) {
+	leadSeat := st.Trick.LeaderSeat
+	if leadSeat < 0 || leadSeat > 3 {
+		return PlayedMove{}, ErrSystem.WithInfof("先手座位%d非法", leadSeat)
+	}
+	leadPlayed := st.Trick.Plays[leadSeat]
+	if leadPlayed == nil {
+		return PlayedMove{}, ErrStateNotYourTurn.WithInfof("请等待%d号位先手出牌", leadSeat)
+	}
+	leadSC := leadPlayed.SuitClass
+	leadBlocks := leadPlayed.Move.Blocks
+	if len(leadBlocks) == 0 {
+		return PlayedMove{}, ErrSystem.WithInfo("先手 blocks 为空，无法跟牌校验")
+	}
+	// 1) 藏牌校验
+	if err := rules.ValidateHideCheck(st.Seats[seat].Hand, selected, leadBlocks, st.Trump.Trump); err != nil {
+		return PlayedMove{}, ErrRuleIllegalFollow.WithInfo(err.Error())
+	}
+	// 2) 垫牌判定（只按 SuitClass 快判；垫牌不需要分解 blocks）
+	padding, blockComparable, sc := rules.ClassifyPaddingAndComparable(selected, leadSC)
+	// 3) 组装 currentMove（垫牌，不计算Blocks，仅保存 Cards/CardIDs供展示+计分）
+	currentMove := PlayedMove{
+		Seat:      seat,
+		SuitClass: sc,
+		Move: Move{
+			Blocks:  nil,
+			CardIDs: getIDs(selected),
+			Cards:   selected,
+		},
+	}
+	if padding {
+		currentMove.Info = "垫牌"
+	}
+	// 4) 比较计算
+	if blockComparable {
+		if st.Trick.BiggerSeat < 0 {
+			return PlayedMove{}, ErrSystem.WithInfo("跟牌比较出错，非法BiggerSeat")
+		}
+		bigSeat := st.Trick.BiggerSeat
+		bigMove := st.Trick.Plays[bigSeat]
+		if bigMove == nil {
+			return PlayedMove{}, ErrSystem.WithInfo("跟牌比较出错，无法找到当前最大出牌方")
+		}
+		win, err := rules.CompareForTrickWin(bigMove.Blocks, selected, st.Trump.Trump)
+		if err != nil {
+			return PlayedMove{}, ErrRuleIllegalPlay.WithInfo(err.Error())
+		}
+		if win {
+			// 只有获胜才需要进行牌型分解
+			st.Trick.BiggerSeat = seat
+			blockGroups, decomposeErr := rules.DecomposeThrow(selected, st.Trump.Trump, sc)
+			if decomposeErr != nil {
+				return PlayedMove{}, ErrSystem.WithInfo(decomposeErr.Error())
+			}
+			currentMove.Move.Blocks = blockGroups
+			currentMove.Info = "当前最大"
+		}
+	}
+	return currentMove, nil
+}
+
+func settleTrickEnd(st *GameState) string {
+	tr := &st.Trick
+	if tr.BiggerSeat < 0 {
+		tr.BiggerSeat = tr.LeaderSeat
+	}
+	winner := tr.BiggerSeat
+	tr.WinnerSeat = winner
+	tr.Resolved = true
+
+	// 统计本墩分数
+	points := 0
+	for i := 0; i < 4; i++ {
+		mv := tr.Plays[i]
+		if mv == nil {
+			continue
+		}
+		points += rules.TrickPoints(mv.Move.Cards)
+	}
+	if !inCallerGroup(st, winner) {
+		st.Points += points
+	}
+
+	// 准备下一墩：winner 先手
+	tr.LeaderSeat = winner
+	tr.TurnSeat = winner
+	tr.BiggerSeat = -1
+	for i := 0; i < 4; i++ {
+		tr.LastPlays[i] = tr.Plays[i]
+		tr.Plays[i] = nil
+	}
+	tr.Throw = nil
+
+	notice := fmt.Sprintf("本墩结束，赢家=%d号位，得分=%d，小局总分=%d", winner, points, st.Points)
+	if inCallerGroup(st, winner) {
+		notice = fmt.Sprintf("本墩结束，赢家=玩家%d，打家不得分", winner)
+	}
+	return notice
 }

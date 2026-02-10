@@ -47,10 +47,10 @@ type Move struct {
 }
 
 type PlayedMove struct {
-	Move      `json:"followMove"` // 先手出牌/跟牌
-	Seat      int                 `json:"seat"`      // 进入 PhasePlayTrick 时初始化为-1，表示未出牌
-	SuitClass rules.SuitClass     `json:"suitClass"` // 牌域。若跟牌牌域不一致（垫），则SuitClass = "Mix"，不可参与回合结算
-	Info      string              `json:"info"`      // 附加信息
+	Move      `json:"followMove"`                // 先手出牌/跟牌
+	Seat      int             `json:"seat"`      // 进入 PhasePlayTrick 时初始化为-1，表示未出牌
+	SuitClass rules.SuitClass `json:"suitClass"` // 牌域。若跟牌牌域不一致（垫），则SuitClass = "Mix"，不可参与回合结算
+	Info      string          `json:"info"`      // 附加信息
 }
 
 type ThrowMove struct {
@@ -65,9 +65,11 @@ type TrickState struct {
 	Plays      [4]*PlayedMove `json:"playedMoves"` // 每座位本回合实际出的牌（未出牌则为空）
 	Throw      *ThrowMove     `json:"throwMove"`   // 先手甩牌意图
 
+	BiggerSeat int  `json:"biggerSeat"` // 当前最大者
 	Resolved   bool `json:"resolved"`   // 本回合（本墩）是否结束
 	WinnerSeat int  `json:"winnerSeat"` // resolved 后有效
-	Points     int  `json:"points"`     // 本墩打家吃分（末墩抠底之前）
+
+	LastPlays [4]*PlayedMove `json:"lastMoves"` // 上一回合的出牌记录
 }
 
 type GameState struct {
@@ -84,7 +86,7 @@ type GameState struct {
 	CallPassMask uint8    `json:"-"`          // bit0..bit3 表示seat是否已pass（内部），用于第一小局判定是否无主
 
 	NextStarterSeat int `json:"-"`             // 跨小局保留：下一小局谁先定主/先手（结算时写）
-	StarterSeat     int `json:"starterSeat"`   // 本小局谁先定主（=NextStarterSeat）
+	CallerSeat      int `json:"callerSeat"`    // 本小局谁定主
 	CallTurnSeat    int `json:"callTurnSeat"`  // 当前轮到谁定主
 	CallPassCount   int `json:"callPassCount"` // 已pass次数（最多4）
 
@@ -99,5 +101,15 @@ type GameState struct {
 	BottomOwnerSeat int          `json:"bottomOwnerSeat"`
 
 	// ---- 回合 ----
-	Trick TrickState `json:"trick"`
+	Trick      TrickState `json:"trick"`
+	Points     int        `json:"points"`     // 本墩打家吃分（末墩抠底之前）
+	TrickIndex int        `json:"trickIndex"` // 本小局第几墩，从0开始
+
+	// ---- 末墩抠底 ----
+	BottomRevealed bool         `json:"bottomRevealed"`         // 是否已经抠/公开底牌（用于断线重连）
+	BottomReveal   []rules.Card `json:"bottomReveal,omitempty"` // 公开给前端展示（可选）
+	BottomPoints   int          `json:"bottomPoints"`           // 底牌分（不含倍率）
+	BottomMul      int          `json:"bottomMul"`              // 倍率（2/4/1）
+	BottomAward    int          `json:"bottomAward"`            // 实际加到 st.Points 的分（含倍率，且只在打家得分时生效）
+
 }
