@@ -28,6 +28,22 @@ type ViewState struct {
 	Trick  TrickState `json:"trick"`  // 全部可见
 	Points int        `json:"points"` // 每小局打家的得分
 
+	TrickIndex int `json:"trickIndex"` // 本小局第几墩，从0开始
+
+	// 末墩抠底（公开信息）
+	BottomRevealed bool         `json:"bottomRevealed"`
+	BottomReveal   []rules.Card `json:"bottomReveal,omitempty"` // 在最后末墩结算时，公开给前端底牌区展示
+	BottomPoints   int          `json:"bottomPoints"`
+	BottomMul      int          `json:"bottomMul"`
+	BottomAward    int          `json:"bottomAward"`
+
+	// 小局结算展示（PhaseRoundSettle 用）
+	RoundPointsFinal int    `json:"roundPointsFinal"`
+	RoundResultLabel string `json:"roundResultLabel"`
+	CallerDelta      int    `json:"callerDelta"`
+	DefenderDelta    int    `json:"defenderDelta"`
+	NextStarterSeat  int    `json:"nextStarterSeat"` // 关键：谁可以点“开始下一局”
+
 	MySeat   int          `json:"mySeat"`
 	MyBottom []rules.Card `json:"myBottom"` // 仅在 PhaseBottom 本人可见
 	MyHand   []rules.Card `json:"myHand"`   // 仅本人可见
@@ -93,6 +109,12 @@ func MakeView(st GameState, uid string) ViewState {
 		}
 	}
 
+	// 末墩公开底牌：对所有人可见（你现在就是这个语义）
+	bottomReveal := []rules.Card(nil)
+	if st.BottomRevealed && len(st.BottomReveal) > 0 {
+		bottomReveal = append([]rules.Card(nil), st.BottomReveal...)
+	}
+
 	return ViewState{
 		RoomID:  st.RoomID,
 		Phase:   st.Phase,
@@ -118,8 +140,23 @@ func MakeView(st GameState, uid string) ViewState {
 		MyBottom: myBottom,
 		MyHand:   myHand,
 
-		Trick:  st.Trick,
-		Points: st.Points,
+		Trick:      st.Trick,
+		Points:     st.Points,
+		TrickIndex: st.TrickIndex,
+
+		// 末墩抠底
+		BottomRevealed: st.BottomRevealed,
+		BottomReveal:   bottomReveal,
+		BottomPoints:   st.BottomPoints,
+		BottomMul:      st.BottomMul,
+		BottomAward:    st.BottomAward,
+
+		// 小局结算展示
+		RoundPointsFinal: st.RoundPointsFinal,
+		RoundResultLabel: st.RoundResultLabel,
+		CallerDelta:      st.CallerDelta,
+		DefenderDelta:    st.DefenderDelta,
+		NextStarterSeat:  st.NextStarterSeat, // 关键
 	}
 }
 

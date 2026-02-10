@@ -71,9 +71,6 @@ var (
 	ErrRuleIllegalPlay   = NewErr("RULE_ILLEGAL_PLAY", "出牌不符合规则")
 	ErrRuleIllegalFollow = NewErr("RULE_ILLEGAL_FOLLOW", "跟牌不符合规则")
 	ErrRuleIllegalTrump  = NewErr("RULE_ILLEGAL_TRUMP", "主牌使用不合法")
-	ErrRuleIncomparable  = NewErr("RULE_INCOMPARABLE", "所选卡牌无法比较")
-	ErrRuleInvalidLevel  = NewErr("RULE_INVALID_LEVEL", "等级牌不合法")
-	ErrRuleInvalidJoker  = NewErr("RULE_INVALID_JOKER", "王牌使用不合法")
 )
 
 // ---------- 状态机错误（game / engine 层）----------
