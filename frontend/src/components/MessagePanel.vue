@@ -25,6 +25,10 @@ watch(
 
 <template>
   <div class="panel message-panel" ref="boxRef">
+    <div class="title">系统消息</div>
+    <div v-if="displayList.length === 0" class="msg notice">
+      暂无系统消息
+    </div>
     <div
         v-for="m in displayList"
         :key="m.id"
@@ -43,7 +47,7 @@ watch(
 }
 
 .msg {
-  font-size: 12px;
+  font-size: 18px;
   line-height: 1.4;
   margin-bottom: 6px;
   word-break: break-word;
@@ -56,4 +60,12 @@ watch(
 .msg.notice {
   color: var(--color-notice);
 }
+.title {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  opacity: 0.7;
+}
+
+
 </style>

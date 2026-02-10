@@ -674,7 +674,7 @@ func settleTrickEnd(st *GameState) string {
 	st.TrickIndex++
 	notice := ""
 	if inCallerGroup(st, winner) {
-		notice = fmt.Sprintf("本墩结束，赢家=%d号位（坐家），打家不得分", winner)
+		notice = fmt.Sprintf("本墩结束，赢家=%d号位（坐家），共跑分=%d，打家不得分", winner, points)
 	} else {
 		notice = fmt.Sprintf("本墩结束，赢家=%d号位（打家），本墩得分=%d，打家累计分=%d", winner, points, st.Points)
 	}
@@ -724,9 +724,9 @@ func settleDigBottom(st *GameState, winner int) string {
 	st.BottomReveal = append([]rules.Card(nil), st.Bottom...)
 
 	if inCallerGroup(st, winner) {
-		return fmt.Sprintf("赢家=玩家%d（坐家）,打家不可挖底", winner)
+		return fmt.Sprintf("打家不可挖底")
 	}
-	return fmt.Sprintf("末墩抠底：赢家=玩家%d（打家），底牌分=%d×%d，打家累计分=%d", winner, base, mul, st.Points)
+	return fmt.Sprintf("末墩抠底，底牌分=%d×%d，打家累计分=%d", base, mul, st.Points)
 }
 
 func settleRoundEnd(st *GameState) string {

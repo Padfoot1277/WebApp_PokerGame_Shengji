@@ -76,7 +76,8 @@ func ParseClientEvent(typ string, raw json.RawMessage) (game.ClientEventType, an
 			return "", nil, game.ErrInvalidPayload.WithInfo(err.Error())
 		}
 		return game.EvPlayCards, p, nil
-
+	case string(game.EvStartNextRound):
+		return game.EvStartNextRound, struct{}{}, nil
 	default:
 		return "", nil, game.ErrUnknownEvent.WithInfof("非法事件 %s", typ)
 	}

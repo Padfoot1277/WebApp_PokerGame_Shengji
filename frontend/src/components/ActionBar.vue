@@ -71,6 +71,18 @@ const canCallPassNow = computed(() => {
   return false
 })
 
+const canNextRoundNow = computed(() => {
+  if (mySeat.value < 0) return false
+  if (phase.value !== 'round_settle') return false
+  return mySeat.value === v.value?.nextStarterSeat
+})
+
+
+function nextRound() {
+  if (!canNextRoundNow.value) return
+  game.sendEvent('game.start_next_round', {})
+}
+
 /* -----------------------
  * 点击提交：做“最小形状校验”，不做规则校验
  * ---------------------- */
@@ -216,6 +228,10 @@ function callPass() {
     <!-- 通用 -->
     <button @click="callPass" :disabled="!canCallPassNow">跳过</button>
     <button @click="clear">清空选择</button>
+
+    <!-- 下一小局 -->
+    <button @click="nextRound"  :disabled="!canNextRoundNow">下一小局</button>
+
   </div>
 </template>
 

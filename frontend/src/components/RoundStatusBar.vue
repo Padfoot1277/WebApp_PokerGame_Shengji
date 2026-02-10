@@ -8,17 +8,19 @@ const v = computed(() => game.view)
 
 const phase = computed(() => v.value?.phase ?? '')
 const trump = computed(() => v.value?.trump)
-const bottomOwner = computed(() => v.value?.bottomOwnerSeat ?? -1)
+const bottomOwner = computed(() => v.value?.starterSeat ?? -1)
 
 const phaseText: Record<string, string> = {
-  lobby: '等待入座/准备',
+  lobby: '等待入座 / 准备',
   dealing: '发牌中',
-  call_trump: '定主/抢主',
-  bottom: '收底/扣底',
-  trump_fight: '改主/攻主窗口',
+  call_trump: '定主 / 抢主',
+  bottom: '收底 / 扣底',
+  trump_fight: '改主 / 攻主窗口',
   play_trick: '出牌中',
   follow_trick: '跟牌中',
+  round_settle: '小局结束',
 }
+const nextRoundOwner = computed(() => v.value?.nextStarterSeat ?? -1)
 
 const trumpSuitInfo = computed(() => {
   if (!trump.value?.hasTrumpSuit) return null
@@ -55,6 +57,14 @@ const trumpSuitInfo = computed(() => {
 
     <div v-if="bottomOwner >= 0">
       坐家：Seat {{ bottomOwner }}
+    </div>
+    <div
+        v-if="phase === 'round_settle'"
+        class="row"
+    >
+  <span v-if="nextRoundOwner >= 0">
+    等待 Seat {{ nextRoundOwner }} 开始下一小局
+  </span>
     </div>
   </div>
 </template>

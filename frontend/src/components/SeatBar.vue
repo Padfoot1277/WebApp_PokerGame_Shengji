@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useGameStore } from '../store/game'
 import TrickPlayView from './TrickPlayView.vue'
 
@@ -13,66 +13,24 @@ const orderedSeats = computed(() =>
     seatOrder.map((idx) => ({ idx, s: seats.value[idx] }))
 )
 
-/**
- * 当前真实 trick（用于 turnSeat 等“进行中”指示）
- */
+const trickToShow = computed(() => {
+  const t = v.value?.trick
+  if (!t) return null
+
+  // 已结算：展示上一墩
+  if (t.resolved && t.lastMoves) {
+    return {
+      ...t,
+      playedMoves: t.lastMoves,
+    }
+  }
+
+  // 未结算：展示当前墩
+  return t
+})
 const liveTrick = computed(() => v.value?.trick)
 
-/**
- * 展示缓存：用于“上一墩打完也保留显示”，直到下一墩先手出第一手才切换
- */
-const displayTrick = ref<any>(null)
 
-function countPlays(trick: any): number {
-  if (!trick?.playedMoves) return 0
-  return trick.playedMoves.filter((x: any) => x != null).length
-}
-
-watch(
-    () => v.value?.trick,
-    (t) => {
-      if (!t) return
-
-      const curCount = countPlays(t)
-
-      // 初始化：有数据就收敛到 displayTrick
-      if (!displayTrick.value) {
-        if (curCount > 0 || t.resolved) displayTrick.value = t
-        return
-      }
-
-      const disp = displayTrick.value
-      const dispCount = countPlays(disp)
-
-      // 1) 本墩已结算：冻结显示（让玩家能看到这一墩4家的出牌）
-      if (t.resolved && curCount === 4) {
-        displayTrick.value = t
-        return
-      }
-
-      // 2) 未结算且已经有人出牌：通常应该跟随当前 trick 更新展示
-      if (!t.resolved && curCount > 0) {
-        // 若当前 displayTrick 是“上一墩已结算且满4手”，只有当新墩先手出第一手（count==1）才切换到新 trick
-        if (disp?.resolved && dispCount === 4) {
-          if (curCount === 1) {
-            // 新墩开始：这时切换，等价于清空其他人出牌展示
-            displayTrick.value = t
-          } else {
-            // 仍保留上一墩展示（避免在新墩首手前/中途误清空）
-          }
-        } else {
-          // 正常跟随进行中的本墩展示
-          displayTrick.value = t
-        }
-        return
-      }
-
-      // 其他情况：保持不变（例如：刚初始化但还没人出牌）
-    },
-    { deep: true, immediate: true }
-)
-
-const trickToShow = computed(() => displayTrick.value ?? liveTrick.value)
 
 function seatStatus(idx: number): string {
   const view = v.value
