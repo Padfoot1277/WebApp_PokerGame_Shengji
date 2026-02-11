@@ -727,20 +727,16 @@ func settleDigBottom(st *GameState, winner int) string {
 
 	st.BottomPoints = base
 	st.BottomMul = mul
-	if canDigBottom(st, winner) {
+	dig, reason := canDigBottom(st, winner)
+	if dig {
 		st.Points += award
 		st.BottomAward = award
 	} else {
 		st.BottomAward = 0
 	}
-
 	st.BottomReveal = append([]rules.Card(nil), st.Bottom...)
-
-	if inCallerGroup(st, winner) {
-		return fmt.Sprintf("打家未能挖底")
-	}
-	if !canDigBottom(st, winner) {
-		return fmt.Sprintf("打家攻主后不可挖底")
+	if !dig {
+		return reason
 	}
 	return fmt.Sprintf("末墩抠底，底牌分=%d×%d，打家累计分=%d", base, mul, st.Points)
 }

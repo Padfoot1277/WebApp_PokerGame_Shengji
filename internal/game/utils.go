@@ -177,13 +177,16 @@ func isLastTrickAfterThisTrick(st *GameState) bool {
 	return true
 }
 
-func canDigBottom(st *GameState, winner int) bool {
+// canDigBottom 是否可挖底，返回值：第一个表示是否可挖底，第二个表示原因：1 非末墩赢家 2 本局无人定主 3
+func canDigBottom(st *GameState, winner int) (bool, string) {
 	if inCallerGroup(st, winner) {
-		return false
+		return false, "打家未能挖底"
 	}
-	// 规则：打家若攻主则不可挖底
+	if st.BottomOwnerSeat == -1 {
+		return false, "本局硬主不可挖底"
+	}
 	if !st.Trump.HasTrumpSuit && st.BottomOwnerSeat >= 0 && st.BottomOwnerSeat%2 == winner%2 {
-		return false
+		return false, "打家攻主后不可挖底"
 	}
-	return true
+	return true, ""
 }
