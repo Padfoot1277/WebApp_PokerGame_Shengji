@@ -29,7 +29,7 @@ const trickToShow = computed(() => {
   return t
 })
 const liveTrick = computed(() => v.value?.trick)
-
+const biggerSeat = computed(() => v.value?.trick)
 
 
 function seatStatus(idx: number): string {
@@ -129,6 +129,7 @@ function isActiveSeat(idx: number): boolean {
       <div class="corner-badges">
         <span v-if="item.idx === trickToShow?.leaderSeat" class="badge leader" title="先手">🚩</span>
         <span v-if="item.idx === liveTrick?.turnSeat" class="badge turn" title="轮到">👉</span>
+        <span v-if="item.idx === biggerSeat?.biggerSeat" class="badge turn" title="当前最大">👑</span>
       </div>
 
       <TrickPlayView
