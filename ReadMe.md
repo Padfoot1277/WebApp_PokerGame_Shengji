@@ -1,5 +1,10 @@
 本项目是一个基于 Go + WebSocket + Vue 实现的局域网多人在线“升级”游戏。
 
+游戏界面展示
+
+![移动端/PC端界面](images/1.png)
+
+
 # 文件目录
 
 /前后端启动
@@ -156,8 +161,6 @@ game_over
 - 重排
 - 初始化 Trick
 - → `play_trick`
-
----
 
 ## 4. bottom（收底 / 扣底）
 
