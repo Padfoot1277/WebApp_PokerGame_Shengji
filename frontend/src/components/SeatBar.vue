@@ -51,14 +51,14 @@ function seatStatus(idx: number): string {
 
   // bottom：坐家扣底
   if (view.phase === 'bottom') {
-    return idx === view.bottomOwnerSeat ? '扣底中（坐家）' : '等待扣底'
+    return idx === view.bottomOwnerSeat ? '扣底中' : '等待扣底'
   }
 
   // trump_fight：非坐家改/攻主窗口
   if (view.phase === 'trump_fight') {
-    if (idx === view.bottomOwnerSeat) return '坐家（等待改/攻主结束）'
+    if (idx === view.bottomOwnerSeat) return '等待他人改/攻主'
     if (view.fightPassedSeats[idx]) return '已跳过'
-    return '改/攻主窗口'
+    return '改/攻主思考中'
   }
 
   // play_trick / follow_trick：出牌/跟牌
@@ -115,21 +115,20 @@ function isActiveSeat(idx: number): boolean {
   }"
     >
       <div class="seat-head">
-        <strong>Seat {{ item.idx }}</strong>
+        <strong> {{ item.idx }}号位</strong>
         <span v-if="item.idx === v?.mySeat">（我）</span>
+        <span v-else>（{{ item.s.uid || '空' }}）</span>
       </div>
 
       <div class="status">
         状态：<span class="badge">{{ seatStatus(item.idx) }}</span>
       </div>
 
-      <div>UID: {{ item.s.uid || '空' }}</div>
-
       <!-- ✅ 右上角浮层 -->
       <div class="corner-badges">
         <span v-if="item.idx === trickToShow?.leaderSeat" class="badge leader" title="先手">🚩</span>
         <span v-if="item.idx === liveTrick?.turnSeat" class="badge turn" title="轮到">👉</span>
-        <span v-if="item.idx === biggerSeat?.biggerSeat" class="badge turn" title="当前最大">👑</span>
+        <span v-if="item.idx === biggerSeat?.biggerSeat" class="badge bigger" title="当前最大">⭐️</span> <!-- 可供替换的emoji 👍⭐️☀️🌟🔥⚡️-->
       </div>
 
       <TrickPlayView
@@ -216,5 +215,12 @@ function isActiveSeat(idx: number): boolean {
   border-color: pink;
 }
 
+.corner-badges .badge.bigger {
+  border-color: yellow;
+}
+
+.seat-head strong {
+  font-size: 20px;   /* 自己调大小 */
+}
 
 </style>

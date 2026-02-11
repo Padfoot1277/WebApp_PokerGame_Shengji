@@ -51,7 +51,7 @@ func AddRank(r Rank, delta int) Rank {
 	}
 	nidx := idx + delta
 	if nidx >= len(seq) {
-		nidx = 0 // 无限模式
+		nidx = 0 // 无尽模式
 	}
 	return seq[nidx]
 }

@@ -21,17 +21,15 @@ function clearSelection() {
     <RoundStatusBar />
     <SeatBar />
 
-    <ActionBar
-        :selected-ids="selectedIds"
-        @clear-selection="clearSelection"
-    />
-
     <HandArea
         v-model:selected-ids="selectedIds"
         @clear="clearSelection"
     />
+    <ActionBar
+        :selected-ids="selectedIds"
+        @clear-selection="clearSelection"
+    />
     <BottomArea />
-
 
     <MessagePanel />
   </div>

@@ -26,11 +26,27 @@ function sit(seat: number) {
 function leave() {
   game.sendEvent('room.leave_seat', {})
 }
+
+const myReady = computed(() =>
+    mySeat.value >= 0 ? game.view.seats[mySeat.value].ready : false
+)
+
+function ready() {
+  game.sendEvent('room.ready', {})
+}
+
+function unready() {
+  game.sendEvent('room.unready', {})
+}
+
+function startGame() {
+  game.sendEvent('game.start', {})
+}
 </script>
 
 <template>
   <div class="panel">
-    <h3>座位</h3>
+    <h3>座位信息</h3>
 
     <div class="seat-grid">
       <div
@@ -40,9 +56,9 @@ function leave() {
           :class="{ mine: seatOrder[displayIdx] === mySeat }"
       >
         <!-- 显示真实 seat 编号 -->
-        <div>Seat {{ seatOrder[displayIdx] }}</div>
+        <div><strong>Seat {{ seatOrder[displayIdx] }}</strong></div>
 
-        <div v-if="s.uid">UID: {{ s.uid }}</div>
+        <div v-if="s.uid">名字：{{ s.uid }}</div>
         <div v-else>空位</div>
 
         <div>状态：{{ s.online ? '在线' : '离线' }}</div>
@@ -62,6 +78,20 @@ function leave() {
             @click="leave"
         >
           离座
+        </button>
+
+        <button
+            v-if="mySeat >= 0 && !myReady && seatOrder[displayIdx] === mySeat"
+            @click="ready"
+        >
+          准备
+        </button>
+
+        <button
+            v-if="mySeat >= 0 && myReady && seatOrder[displayIdx] === mySeat"
+            @click="unready"
+        >
+          取消准备
         </button>
       </div>
     </div>
@@ -84,4 +114,13 @@ function leave() {
 .seat.mine {
   outline: 2px solid #4da3ff;
 }
+
+.panel button {
+  background: #4da3ff;
+  color: #fff;
+}
+.panel button:hover {
+  filter: brightness(1.1);
+}
+
 </style>

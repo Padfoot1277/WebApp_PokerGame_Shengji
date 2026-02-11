@@ -97,7 +97,7 @@ func sortAllHands(st *GameState) {
 }
 
 // 在定主/改主/攻主后，重新修改每张牌的SuitClass
-func refreshHandSuitClassForUI(st *GameState) {
+func refreshCardsSuitClass(st *GameState) {
 	for i := 0; i < 4; i++ {
 		for j := range st.Seats[i].Hand {
 			st.Seats[i].Hand[j].SuitClass = rules.ComputeSuitClass(st.Seats[i].Hand[j], st.Trump.Trump)
@@ -173,6 +173,17 @@ func isLastTrickAfterThisTrick(st *GameState) bool {
 		if st.Seats[i].HandCount != 0 {
 			return false
 		}
+	}
+	return true
+}
+
+func canDigBottom(st *GameState, winner int) bool {
+	if inCallerGroup(st, winner) {
+		return false
+	}
+	// 规则：打家若攻主则不可挖底
+	if !st.Trump.HasTrumpSuit && st.BottomOwnerSeat >= 0 && st.BottomOwnerSeat%2 == winner%2 {
+		return false
 	}
 	return true
 }

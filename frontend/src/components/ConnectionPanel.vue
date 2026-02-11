@@ -4,7 +4,7 @@ import { useGameStore } from '../store/game'
 
 const game = useGameStore()
 
-const wsBase = ref('ws://192.168.1.109:8080/ws')
+const wsBase = ref('ws://192.168.1.109:8080/ws')  // 请替换为当前服务器的IP地址，我这里是192.168.1.109，监听的是8080端口
 const roomId = ref('room1')
 
 // 允许为空：为空则后端生成 anon-xxx
@@ -27,20 +27,20 @@ function connect() {
 
 <template>
   <div class="panel">
-    <h3>连接</h3>
+    <h3>房间信息</h3>
 
     <div class="row">
-      <label>UID（可空）</label>
-      <input v-model="uid" placeholder="留空则采用随机值" />
+      <label>用户ID</label>
+      <input v-model="uid" placeholder="（可空，将根据时间赋值）" />
     </div>
 
     <div class="row">
-      <label>Room</label>
+      <label>房间ID</label>
       <input v-model="roomId" />
     </div>
 
     <div class="row">
-      <label>WS</label>
+      <label>WS地址</label>
       <input v-model="wsBase" />
     </div>
 
@@ -49,7 +49,7 @@ function connect() {
     </button>
 
     <div class="hint">
-      当前UID：{{ game.uid ?? '未连接' }}
+      当前用户ID：{{ game.uid ?? '未连接' }}
     </div>
   </div>
 </template>
@@ -60,4 +60,12 @@ function connect() {
 label { width: 110px; color: var(--text-muted); font-size: 12px; }
 input { flex: 1; min-height: 36px; padding: 0 8px; }
 .hint { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.panel button {
+  background: #4da3ff;
+  color: #fff;
+}
+.panel button:hover {
+  filter: brightness(1.1);
+}
+
 </style>

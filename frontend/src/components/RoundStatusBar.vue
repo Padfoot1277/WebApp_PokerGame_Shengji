@@ -8,7 +8,8 @@ const v = computed(() => game.view)
 
 const phase = computed(() => v.value?.phase ?? '')
 const trump = computed(() => v.value?.trump)
-const bottomOwner = computed(() => v.value?.starterSeat ?? -1)
+const starterSeat = computed(() => v.value?.starterSeat ?? -1)
+const beaterScore = computed(() => v.value?.points ?? -1)
 
 const phaseText: Record<string, string> = {
   lobby: '等待入座 / 准备',
@@ -30,40 +31,56 @@ const trumpSuitInfo = computed(() => {
 
 <template>
   <div class="panel">
-    <div>阶段：{{ phaseText[phase] ?? phase }}</div>
-
-    <div v-if="trump" class="row">
-      <span>级牌：{{ trump.levelRank }}</span>
-
-      <span class="ml">
-        主牌：
-<span
-    v-if="trump.hasTrumpSuit && trumpSuitInfo"
-    class="trump-badge"
-    :class="{ locked: trump.locked }"
->
-  <span class="suit" :class="trumpSuitInfo.color">
-    {{ trumpSuitInfo.symbol }}
+    <div class="info-line">
+  <span class="tag">
+    <strong>阶段</strong>
+    {{ phaseText[phase] ?? phase }}
   </span>
-</span>
 
-<span v-else class="trump-badge hard">
-  硬主
-</span>
+      <template v-if="starterSeat >= 0">
+    <span class="tag">
+      <strong>坐庄</strong>
+      {{ starterSeat }}
+    </span>
+
+        <span class="tag">
+          <strong>级牌</strong> {{ trump.levelRank }}
+    </span>
+
+        <span
+            v-if="trump.levelRank !== 'Pending'"
+            class="tag"
+        >
+      <strong>主牌</strong>
+      <span
+          v-if="trump.hasTrumpSuit && trumpSuitInfo"
+          :class="{ locked: trump.locked }"
+      >
+          {{ trumpSuitInfo.symbol }}
       </span>
+      <span v-else class="trump-badge hard">硬主</span>
+    </span>
 
-      <span v-if="trump.locked" class="ml">（锁主）</span>
+        <span v-if="trump.locked" class="tag warn">
+      🔒锁主
+    </span>
+
+        <span
+            v-if="phase === 'round_settle' || phase === 'play_trick'"
+            class="tag score"
+        >
+      <strong>得分</strong> {{ beaterScore }}
+    </span>
+      </template>
     </div>
 
-    <div v-if="bottomOwner >= 0">
-      坐家：Seat {{ bottomOwner }}
-    </div>
+
     <div
         v-if="phase === 'round_settle'"
         class="row"
     >
   <span v-if="nextRoundOwner >= 0">
-    等待 Seat {{ nextRoundOwner }} 开始下一小局
+    请等待 {{ nextRoundOwner }}号位 开始下一小局
   </span>
     </div>
   </div>
@@ -76,6 +93,9 @@ const trumpSuitInfo = computed(() => {
 
 .ml {
   margin-left: 8px;
+}
+.level {
+  margin-left: 10px;
 }
 
 /* 花色上色：黑桃/梅花纯黑，红桃/方块纯红 */
@@ -138,6 +158,65 @@ const trumpSuitInfo = computed(() => {
 .trump-badge.hard {
   font-size: 12px;
   color: #333;
+}
+
+.info-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap; /* 屏幕窄时自动换行 */
+  gap: 8px;
+  font-size: 13px;
+}
+
+/* 基础胶囊 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  padding: 2px 10px;
+  border-radius: 999px;
+
+  background: #f3f4f6;
+  color: #333;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.tag strong {
+  font-weight: 600;
+  color: #555;
+}
+
+/* 特殊语义 */
+.tag.warn {
+  background: #fff1f0;
+  color: #cf1322;
+}
+
+.tag.score {
+  background: #f6ffed;
+  color: #237804;
+}
+.tag.score strong {
+  color: #237804;
+  font-weight: 600;
+}
+
+
+/* 主牌徽章可稍微缩小一点 */
+.trump-badge {
+  margin-left: 2px;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* 花色颜色示例 */
+.suit.red {
+  color: #d4380d;
+}
+.suit.black {
+  color: #222;
 }
 
 </style>

@@ -241,6 +241,7 @@ function callPass() {
 }
 
 button {
+  background: #3498db;
   margin-right: 6px;
   margin-bottom: 6px;
   min-width: 60px;

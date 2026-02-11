@@ -25,7 +25,6 @@ watch(
 
 <template>
   <div class="panel message-panel" ref="boxRef">
-    <div class="title">系统消息</div>
     <div v-if="displayList.length === 0" class="msg notice">
       暂无系统消息
     </div>

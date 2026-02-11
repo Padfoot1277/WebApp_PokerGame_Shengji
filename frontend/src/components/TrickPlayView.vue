@@ -55,7 +55,7 @@ const suitClassText = computed(() => props.move?.suitClass ?? '')
 <style scoped>
 /* 右上角浮层的“卡片” */
 .trick-mini {
-  width: 220px;              /* 你可以改 180/200/240 */
+  width: 100%;              /* 你可以改 180/200/240 */
   max-width: 60vw;
   background: rgba(30, 30, 30, 0.9);
   border: 1px solid #444;

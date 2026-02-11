@@ -46,9 +46,9 @@ const bottomAward = computed(() => v.value?.bottomAward ?? 0)
 
 <template>
   <div v-if="showBottomArea" class="panel bottom-area">
-    <h4>底牌</h4>
+    <h4>底牌（仅供展示）</h4>
 
-    <!-- 1️⃣ 扣底阶段：仅坐家可见 -->
+    <!-- 扣底阶段：仅坐家可见 -->
     <div v-if="canSeeBottom" class="cards">
       <PlayedCardItem
           v-for="c in myBottom"
@@ -57,7 +57,7 @@ const bottomAward = computed(() => v.value?.bottomAward ?? 0)
       />
     </div>
 
-    <!-- 2️⃣ 末墩结算：全员公开底牌 -->
+    <!-- 末墩结算：全员公开底牌 -->
     <div v-else-if="showBottomReveal" class="cards reveal">
       <PlayedCardItem
           v-for="c in bottomReveal"

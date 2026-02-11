@@ -13,7 +13,7 @@ const roundIndex = computed(() => game.view?.roundIndex ?? 0)
     <div class="row">
       <div>第 {{ roundIndex + 1 }} 小局</div>
       <div v-if="teams">
-        队伍 A 级牌：{{ teams[0].levelRank }} ｜ 队伍 B 级牌：{{ teams[1].levelRank }}
+        队伍A (0/2)：<strong>{{ teams[0].levelRank }}</strong> 级，   队伍B (1/3)：<strong>{{ teams[1].levelRank }}</strong> 级
       </div>
     </div>
   </div>

@@ -194,7 +194,7 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 			st.Trump.LevelRank = st.Teams[leaderTeam].LevelRank
 
 			// 修改每张牌的牌域，手牌重排（硬主视角）
-			refreshHandSuitClassForUI(&st)
+			refreshCardsSuitClass(&st)
 			sortAllHands(&st)
 
 			st.BottomOwnerSeat = -1
@@ -242,7 +242,7 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 		st.CallerSeat = seat
 
 		// 修改每张牌的牌域，手牌按“本小局最终级牌 + 主花色”重排
-		refreshHandSuitClassForUI(&st)
+		refreshCardsSuitClass(&st)
 		sortAllHands(&st)
 
 		// 进入下一阶段：坐家收底牌、重扣底牌
@@ -298,7 +298,23 @@ func reduceBottom(st GameState, uid string, typ ClientEventType, payload any) (R
 		st.Bottom = newBottom
 		st.BottomCount = 8
 
-		// 扣底完成：进入改主/攻主窗口（PhaseTrumpFight）
+		// 扣底完成：若当前是攻主扣底，则直接开始游戏（PhasePlayTrick），否则重新进入改主/攻主窗口（PhaseTrumpFight）
+		if !st.Trump.HasTrumpSuit && st.Trump.Suit == rules.SuitAttack {
+			st.FightPassCount = 3
+			st.Phase = PhasePlayTrick
+			st.Trick = TrickState{
+				LeaderSeat: st.CallerSeat,
+				TurnSeat:   st.CallerSeat,
+				BiggerSeat: -1,
+			}
+			st.Version++
+			notice := fmt.Sprintf("玩家%d完成扣牌", seat)
+			if !inCallerGroup(&st, seat) {
+				notice = notice + "，本回合打家不可挖底"
+			}
+			notice = fmt.Sprintf("%s。进入出牌阶段，由%d号位先手", notice, st.CallerSeat)
+			return ReduceResult{State: st, Changed: true, Notice: notice}, nil
+		}
 		st = enterTrumpFight(st)
 		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("玩家%d完成扣牌", seat)}, nil
 
@@ -378,7 +394,7 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		// 改主成功：只改主花色，不改 LevelRank / CallerSeat
 		st.Trump.HasTrumpSuit = true
 		st.Trump.Suit = trumpSuit
-		refreshHandSuitClassForUI(&st)
+		refreshCardsSuitClass(&st)
 		sortAllHands(&st)
 		// 改主者成为 bottomOwner，拿当前底牌并扣底
 		enterBottomPhase(&st, seat)
@@ -403,11 +419,11 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		}
 		// 攻主成功：进入硬主（只影响主花色体系），不改 LevelRank/CallerSeat。此后不可以再改主
 		st.Trump.HasTrumpSuit = false
-		st.Trump.Suit = ""
+		st.Trump.Suit = rules.SuitAttack
 		st.Trump.Locked = true
-		refreshHandSuitClassForUI(&st)
+		refreshCardsSuitClass(&st)
 		sortAllHands(&st)
-		// 攻主者成为 bottomOwner，拿底扣底
+		// 攻主者成为 bottomOwner，拿底扣底，随后将直接进入游戏
 		enterBottomPhase(&st, seat)
 		notice := fmt.Sprintf("玩家%d攻主成功，本小局硬主", seat)
 		return ReduceResult{State: st, Changed: true, Notice: notice}, nil
@@ -567,7 +583,7 @@ func canonicalizeLead(st *GameState, leaderSeat int, sc rules.SuitClass, intentM
 					Blocks:  [][]rules.Block{{throwMin}},
 					Cards:   throwMin.Cards,
 					CardIDs: getIDs(throwMin.Cards),
-				}, fmt.Sprintf("甩牌失败，原计划甩出%v张%v", len(intentMove.CardIDs), sc), nil
+				}, fmt.Sprintf("⚠️⚠️⚠️甩牌失败，原计划甩出%v张%v⚠️⚠️⚠️", len(intentMove.CardIDs), sc), nil
 			}
 		}
 	}
@@ -702,8 +718,6 @@ func settleDigBottom(st *GameState, winner int) string {
 	mul := 1
 	if winner >= 0 && winner < 4 {
 		if pm := st.Trick.LastPlays[winner]; pm != nil {
-			// 推荐：用“牌张数/是否对子”判倍率，比 block type 更稳
-			// mul = rules.DigMultiplierByCards(pm.Cards) // 你可以在 rules 里实现这个
 			if len(pm.Blocks) > 0 && len(pm.Blocks[0]) > 0 {
 				mul = rules.DigMultiplierByWinnerMove(pm.Blocks[0][0].Type)
 			}
@@ -713,7 +727,7 @@ func settleDigBottom(st *GameState, winner int) string {
 
 	st.BottomPoints = base
 	st.BottomMul = mul
-	if !inCallerGroup(st, winner) {
+	if canDigBottom(st, winner) {
 		st.Points += award
 		st.BottomAward = award
 	} else {
@@ -723,7 +737,10 @@ func settleDigBottom(st *GameState, winner int) string {
 	st.BottomReveal = append([]rules.Card(nil), st.Bottom...)
 
 	if inCallerGroup(st, winner) {
-		return fmt.Sprintf("打家不可挖底")
+		return fmt.Sprintf("打家未能挖底")
+	}
+	if !canDigBottom(st, winner) {
+		return fmt.Sprintf("打家攻主后不可挖底")
 	}
 	return fmt.Sprintf("末墩抠底，底牌分=%d×%d，打家累计分=%d", base, mul, st.Points)
 }
@@ -834,6 +851,7 @@ func reduceStartNextRound(st GameState, uid string, typ ClientEventType, payload
 	st.Trick = TrickState{} // 下一局进入 PhasePlayTrick 时再初始化
 	st.BottomOwnerSeat = -1
 	st.BottomCount = 0
+	st.BottomRevealed = true
 	// st.Bottom / st.Seats[i].Hand 等会在发牌时覆盖（Bottom 是 json:"-" 私有字段）
 
 	// 清理 Trump（下一局重新定主）

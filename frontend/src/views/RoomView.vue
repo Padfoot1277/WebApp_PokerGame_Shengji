@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import ConnectionPanel from '../components/ConnectionPanel.vue'
 import SeatList from '../components/SeatList.vue'
-import ReadyPanel from '../components/ReadyPanel.vue'
 </script>
 
 <template>
@@ -11,7 +10,5 @@ import ReadyPanel from '../components/ReadyPanel.vue'
     <ConnectionPanel />
 
     <SeatList />
-
-    <ReadyPanel />
   </div>
 </template>

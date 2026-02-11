@@ -10,6 +10,7 @@ const (
 	Diamond    Suit = "D"
 	SmallJoker Suit = "SJ"
 	BigJoker   Suit = "BJ"
+	SuitAttack Suit = "No"
 )
 
 // SuitClass 出牌类别（牌域）
