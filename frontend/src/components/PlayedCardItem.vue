@@ -27,7 +27,7 @@ const suitInfo = computed(() => suitToSymbol(props.card.suit))
 /* 尽量对齐 HandArea 中 .card 的“牌面按钮”外观 */
 .played-card {
   min-width: 44px;
-  height: 60px;
+  height: 40px;
   margin: 2px;
   border-radius: 6px;
 

@@ -24,11 +24,12 @@ type ViewState struct {
 	FightPassCount   int      `json:"fightPassCount"`
 	BottomOwnerSeat  int      `json:"bottomOwnerSeat"`
 
-	Trump  TrumpState `json:"trump"`
-	Trick  TrickState `json:"trick"`  // 全部可见
-	Points int        `json:"points"` // 每小局打家的得分
-
-	TrickIndex int `json:"trickIndex"` // 本小局第几墩，从0开始
+	TrickIndex int        `json:"trickIndex"` // 本小局第几墩，从0开始
+	Trump      TrumpState `json:"trump"`
+	Trick      TrickState `json:"trick"`      // 全部可见
+	Points     int        `json:"points"`     // 每小局打家的得分
+	HideRecord bool       `json:"hideRecord"` // 是否隐藏记牌
+	Record     Record     `json:"record"`     // 记牌
 
 	// 末墩抠底（公开信息）
 	BottomRevealed bool         `json:"bottomRevealed"`
@@ -44,9 +45,9 @@ type ViewState struct {
 	DefenderDelta    int    `json:"defenderDelta"`
 	NextStarterSeat  int    `json:"nextStarterSeat"` // 关键：谁可以点“开始下一局”
 
-	MySeat   int          `json:"mySeat"`
-	MyBottom []rules.Card `json:"myBottom"` // 仅在 PhaseBottom 本人可见
-	MyHand   []rules.Card `json:"myHand"`   // 仅本人可见
+	MySeat   int            `json:"mySeat"`
+	MyBottom []rules.Card   `json:"myBottom"` // 仅在 PhaseBottom 本人可见
+	MyHand   [][]rules.Card `json:"myHand"`   // 仅本人可见
 }
 
 type SeatView struct {
@@ -80,7 +81,7 @@ func MakeView(st GameState, uid string) ViewState {
 		teams[t] = TeamView{LevelRank: st.Teams[t].LevelRank}
 	}
 
-	myHand := []rules.Card(nil)
+	myHand := [][]rules.Card(nil)
 	myBottom := []rules.Card(nil)
 	mySeat := -1
 
@@ -94,7 +95,7 @@ func MakeView(st GameState, uid string) ViewState {
 		}
 		if st.Seats[i].UID == uid {
 			mySeat = i
-			myHand = append([]rules.Card(nil), st.Seats[i].Hand...)
+			myHand = append([][]rules.Card(nil), groupBySuitClass(st.Seats[i].Hand)...)
 		}
 	}
 
@@ -142,6 +143,8 @@ func MakeView(st GameState, uid string) ViewState {
 
 		Trick:      st.Trick,
 		Points:     st.Points,
+		HideRecord: st.HideRecord,
+		Record:     st.Record,
 		TrickIndex: st.TrickIndex,
 
 		// 末墩抠底

@@ -64,8 +64,9 @@ input { flex: 1; min-height: 36px; padding: 0 8px; }
   background: #4da3ff;
   color: #fff;
 }
-.panel button:hover {
-  filter: brightness(1.1);
+@media (hover: hover) and (pointer: fine) {
+  .panel button:hover {
+    filter: brightness(1.1);
+  }
 }
-
 </style>

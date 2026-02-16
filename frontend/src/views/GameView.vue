@@ -7,6 +7,7 @@ import ActionBar from '../components/ActionBar.vue'
 import HandArea from '../components/HandArea.vue'
 import MessagePanel from '../components/MessagePanel.vue'
 import BottomArea from '../components/BottomArea.vue'
+import Record from "../components/Record.vue";
 
 const selectedIds = ref<number[]>([])
 
@@ -30,7 +31,7 @@ function clearSelection() {
         @clear-selection="clearSelection"
     />
     <BottomArea />
-
     <MessagePanel />
+    <Record />
   </div>
 </template>

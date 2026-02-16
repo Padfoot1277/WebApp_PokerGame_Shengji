@@ -18,10 +18,10 @@ func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit
 		return "", false, fmt.Errorf("级牌花色不一致")
 	}
 	// Joker + color constraint
-	if isBigJoker(joker) && !isRedSuit(trumpSuit) {
+	if IsBigJoker(joker) && !isRedSuit(trumpSuit) {
 		return "", false, fmt.Errorf("王和级牌颜色不一致")
 	}
-	if isSmallJoker(joker) && !isBlackSuit(trumpSuit) {
+	if IsSmallJoker(joker) && !isBlackSuit(trumpSuit) {
 		return "", false, fmt.Errorf("王和级牌颜色不一致")
 	}
 	// 锁主：同色王 + 一对级牌（len==2 且同花色自然成立）
@@ -41,20 +41,20 @@ func ValidateChangeTrump(LevelRank Rank, joker Card, c1 Card, c2 Card) (trumpSui
 	if c1.Suit != c2.Suit {
 		return "", fmt.Errorf("改主牌非法")
 	}
-	if !isBigJoker(joker) && !isSmallJoker(joker) {
+	if !IsBigJoker(joker) && !IsSmallJoker(joker) {
 		return "", fmt.Errorf("改主牌非法")
 	}
-	if isBigJoker(joker) && !(c1.Suit == Heart || c1.Suit == Diamond) {
+	if IsBigJoker(joker) && !(c1.Suit == Heart || c1.Suit == Diamond) {
 		return "", fmt.Errorf("改主牌非法")
 	}
-	if isSmallJoker(joker) && !(c1.Suit == Spade || c1.Suit == Club) {
+	if IsSmallJoker(joker) && !(c1.Suit == Spade || c1.Suit == Club) {
 		return "", fmt.Errorf("改主牌非法")
 	}
 	return c1.Suit, nil
 }
 
 func ValidateAttackTrump(j1 Card, j2 Card) (err error) {
-	if j1.Suit != j2.Suit || (!isBigJoker(j1) && !isSmallJoker(j1)) {
+	if j1.Suit != j2.Suit || (!IsBigJoker(j1) && !IsSmallJoker(j1)) {
 		return fmt.Errorf("攻主牌非法")
 	}
 	return nil

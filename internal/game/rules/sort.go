@@ -25,10 +25,10 @@ func getCardKey(c Card, ctx Trump) CardKey {
 	// group: 5 big joker, 4 small joker, 3 trump-level, 2 other-level, 1 trump-suit, 0 others
 
 	// 1) Jokers
-	if isBigJoker(c) {
+	if IsBigJoker(c) {
 		return CardKey{a: 5}
 	}
-	if isSmallJoker(c) {
+	if IsSmallJoker(c) {
 		return CardKey{a: 4}
 	}
 

@@ -12,11 +12,11 @@ const starterSeat = computed(() => v.value?.starterSeat ?? -1)
 const beaterScore = computed(() => v.value?.points ?? -1)
 
 const phaseText: Record<string, string> = {
-  lobby: '等待入座 / 准备',
+  lobby: '准备',
   dealing: '发牌中',
-  call_trump: '定主 / 抢主',
-  bottom: '收底 / 扣底',
-  trump_fight: '改主 / 攻主窗口',
+  call_trump: '定主',
+  bottom: '扣底',
+  trump_fight: '攻改窗口',
   play_trick: '出牌中',
   follow_trick: '跟牌中',
   round_settle: '小局结束',
@@ -40,7 +40,7 @@ const trumpSuitInfo = computed(() => {
       <template v-if="starterSeat >= 0">
     <span class="tag">
       <strong>坐庄</strong>
-      {{ starterSeat }}
+      {{ starterSeat }}号位
     </span>
 
         <span class="tag">

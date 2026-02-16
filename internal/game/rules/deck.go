@@ -21,9 +21,10 @@ func NewDoubleDeck() []Card {
 		for _, s := range suits {
 			for _, r := range ranks {
 				deck = append(deck, Card{
-					ID:   id,
-					Suit: s,
-					Rank: r,
+					ID:        id,
+					Suit:      s,
+					Rank:      r,
+					SuitClass: suit2SuitClass[s],
 				})
 				id++
 			}

@@ -1,30 +1,17 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed } from 'vue'
 import { useGameStore } from '../store/game'
 
 const game = useGameStore()
-const boxRef = ref<HTMLDivElement | null>(null)
 
-// 最新在上：倒序渲染（新 -> 旧）
 const displayList = computed(() => {
-  // slice() 防止原地 reverse 影响 store
-  return game.messages.slice().reverse()
+  const arr = game.messages
+  return arr.length ? [arr[arr.length - 1]] : []
 })
-
-// 每次消息数量变化：滚到顶部（最新位置）
-watch(
-    () => game.messages.length,
-    async () => {
-      await nextTick()
-      if (boxRef.value) {
-        boxRef.value.scrollTop = 0
-      }
-    }
-)
 </script>
 
 <template>
-  <div class="panel message-panel" ref="boxRef">
+  <div class="panel message-panel">
     <div v-if="displayList.length === 0" class="msg notice">
       暂无系统消息
     </div>
@@ -38,12 +25,16 @@ watch(
   </div>
 </template>
 
+
 <style scoped>
 .message-panel {
-  max-height: 160px;
-  overflow-y: auto;
-  padding: 10px;
+  height: 50px;
+  overflow: hidden;
+  padding: 5px;
+  display: flex;
+  align-items: center;
 }
+
 
 .msg {
   font-size: 18px;
@@ -60,7 +51,7 @@ watch(
   color: var(--color-notice);
 }
 .title {
-  font-size: 15px;
+  font-size: 12px;
   font-weight: 600;
   margin-bottom: 6px;
   opacity: 0.7;

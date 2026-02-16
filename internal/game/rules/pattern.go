@@ -35,10 +35,10 @@ func isRedSuit(s Suit) bool {
 func isBlackSuit(s Suit) bool {
 	return s == Spade || s == Club
 }
-func isBigJoker(c Card) bool {
+func IsBigJoker(c Card) bool {
 	return c.Suit == BigJoker
 }
-func isSmallJoker(c Card) bool {
+func IsSmallJoker(c Card) bool {
 	return c.Suit == SmallJoker
 }
 func isNormal(c Card) bool {

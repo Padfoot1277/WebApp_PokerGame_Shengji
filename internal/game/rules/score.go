@@ -36,7 +36,7 @@ func AddRank(r Rank, delta int) Rank {
 	seq := []Rank{R2, R3, R4, R5, R6, R7, R8, R9, R10, RJ, RQ, RK, RA}
 	// Pending：保持不变（如果你希望 Pending + delta 从 R2 开始，可在这里改）
 	if r == RPending || r == RBJ || r == RSJ {
-		return r
+		return R2
 	}
 	// 找到当前 rank 在序列中的位置
 	idx := -1
@@ -47,7 +47,7 @@ func AddRank(r Rank, delta int) Rank {
 		}
 	}
 	if idx == -1 {
-		return r
+		return R2
 	}
 	nidx := idx + delta
 	if nidx >= len(seq) {

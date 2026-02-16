@@ -109,10 +109,14 @@ func startDeal(st *GameState) {
 		// 发牌阶段：先按“本队级牌 + 无主花色”排序，便于判断能否定主
 		team := st.Seats[i].Team
 		level := st.Teams[team].LevelRank
-		rules.SortHand(st.Seats[i].Hand, rules.Trump{
+		tempTrump := rules.Trump{
 			LevelRank:    level,
 			HasTrumpSuit: false,
-		})
+		}
+		for j := range st.Seats[i].Hand {
+			st.Seats[i].Hand[j].SuitClass = rules.ComputeSuitClass(st.Seats[i].Hand[j], tempTrump)
+		}
+		rules.SortHand(st.Seats[i].Hand, tempTrump)
 	}
 
 	// 写入底牌
@@ -145,6 +149,7 @@ func startDeal(st *GameState) {
 		CallerSeat: -1,
 	}
 	st.Points = 0
+	st.Record = Record{}
 
 	// 发牌结束后进入下一阶段（定主）
 	st.Phase = PhaseCallTrump
@@ -583,7 +588,7 @@ func canonicalizeLead(st *GameState, leaderSeat int, sc rules.SuitClass, intentM
 					Blocks:  [][]rules.Block{{throwMin}},
 					Cards:   throwMin.Cards,
 					CardIDs: getIDs(throwMin.Cards),
-				}, fmt.Sprintf("⚠️⚠️⚠️甩牌失败，原计划甩出%v张%v⚠️⚠️⚠️", len(intentMove.CardIDs), sc), nil
+				}, fmt.Sprintf("⚠️甩牌失败，原计划甩出%v张%v⚠️", len(intentMove.CardIDs), sc), nil
 			}
 		}
 	}
@@ -664,7 +669,7 @@ func settleTrickEnd(st *GameState) string {
 	tr.WinnerSeat = winner
 	tr.Resolved = true
 
-	// 统计本墩分数
+	// 统计本墩分数，记牌
 	points := 0
 	for i := 0; i < 4; i++ {
 		mv := tr.Plays[i]
@@ -672,6 +677,7 @@ func settleTrickEnd(st *GameState) string {
 			continue
 		}
 		points += rules.TrickPoints(mv.Move.Cards)
+		updateRecord(st, mv.Move.Cards)
 	}
 	if !inCallerGroup(st, winner) {
 		st.Points += points

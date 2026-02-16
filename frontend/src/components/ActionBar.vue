@@ -99,18 +99,27 @@ function playCards() {
 type Card = { id: number; suit: string; rank: string }
 
 function getCardsByIds(ids: number[]): Card[] {
-  const hand: Card[] = (v.value?.myHand ?? []) as Card[]
+  const hand2D: Card[][] = (v.value?.myHand ?? []) as Card[][]
+  const flat = hand2D.flat()
+
   const map = new Map<number, Card>()
-  for (const c of hand) map.set(c.id, c)
-  return ids.map((id) => map.get(id)).filter(Boolean) as Card[]
+  for (const c of flat) {
+    if (c) map.set(c.id, c)
+  }
+
+  return ids
+      .map((id) => map.get(id))
+      .filter((c): c is Card => Boolean(c))
 }
 
 function isJoker(card: Card): boolean {
-  return card.suit === 'SJ' || card.suit === 'BJ'
+  return card.suit === 'SJ' || card.suit === 'BJ' || card.suit === '小王' || card.suit === '大王'
 }
 
 function splitJokers(ids: number[]) {
+  console.log(ids)
   const cards = getCardsByIds(ids)
+  console.log(cards)
   const jokers: Card[] = []
   const others: Card[] = []
   for (const c of cards) {

@@ -19,7 +19,7 @@ const emit = defineEmits<{
 }>()
 
 const game = useGameStore()
-const hand = computed<Card[]>(() => game.view?.myHand ?? [])
+const hand = computed<Card[][]>(() => game.view?.myHand ?? [])
 const phase = computed(() => game.view?.phase)
 
 const selected = ref<Set<number>>(new Set(props.selectedIds))
@@ -51,25 +51,36 @@ function clear() {
 // phase 变化 -> 清空
 watch(phase, () => clear())
 
-// 手牌数量变化（通常是成功出牌/扣底后）-> 清空
-watch(
-    () => hand.value.length,
-    () => clear()
+// 手牌总数变化 -> 清空
+const totalCount = computed(() =>
+    hand.value.reduce((sum, group) => sum + group.length, 0)
 )
+
+watch(totalCount, () => clear())
 </script>
 
 <template>
   <div class="panel hand-area">
     <h4>手牌</h4>
-    <div class="cards">
-      <CardItem
-          v-for="c in hand"
-          :key="c.id"
-          :card="c"
-          :selected="selected.has(c.id)"
-          @toggle="toggle"
-      />
+
+    <div class="suit-groups">
+      <!-- 外层 suitClass -->
+      <div
+          v-for="(group, i) in hand"
+          :key="i"
+          class="cards-row"
+      >
+        <!-- 内层 具体牌 -->
+        <CardItem
+            v-for="c in group"
+            :key="c.id"
+            :card="c"
+            :selected="selected.has(c.id)"
+            @toggle="toggle"
+        />
+      </div>
     </div>
+
   </div>
 </template>
 
@@ -78,32 +89,17 @@ watch(
   margin-top: 8px;
 }
 
-.hand-area .card {
-  color: #000;
-  font-size: 20px;      /* ← 推荐 15px 或 16px */
+/* 整体纵向排列 */
+.suit-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
 }
 
-.hand-area button {
-  background: #eeeeee;        /* 比普通按钮亮 */
-  border: 1px solid #5a5a5a;
-}
-
-.hand-area button:hover:not(:disabled) {
-  background: #e2e2e2; /* 轻微变暗即可 */
-}
-
-.hand-area button.selected {
-  background: #6b5cff;        /* 已选中的牌，更亮 */
-  border-color: #8a80ff;
-  color: #fff;
-}
-
-.hand-area button:disabled {
-  opacity: 0.35;
-}
-
-.cards {
+/* 每一行横向排列 */
+.cards-row {
   display: flex;
   flex-wrap: wrap;
+  gap: 6px;
 }
 </style>

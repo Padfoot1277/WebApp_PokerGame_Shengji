@@ -26,12 +26,21 @@ const (
 	SCUnknown SuitClass = "未知"
 )
 
+var suit2SuitClass = map[Suit]SuitClass{
+	Heart:      SCH,
+	Spade:      SCS,
+	Club:       SCC,
+	Diamond:    SCD,
+	SmallJoker: SCTrump,
+	BigJoker:   SCTrump,
+}
+
 // Rank 牌号
 type Rank string
 
 const (
-	RBJ Rank = "BJ"
-	RSJ Rank = "SJ"
+	RBJ Rank = "大王"
+	RSJ Rank = "小王"
 	RA  Rank = "A"
 	RK  Rank = "K"
 	RQ  Rank = "Q"

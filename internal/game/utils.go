@@ -190,3 +190,55 @@ func canDigBottom(st *GameState, winner int) (bool, string) {
 	}
 	return true, ""
 }
+
+var suitToID = map[rules.Suit]int{
+	rules.Spade:   0,
+	rules.Heart:   1,
+	rules.Diamond: 2,
+	rules.Club:    3,
+}
+
+func updateRecord(st *GameState, cards []rules.Card) {
+	for _, c := range cards {
+		if rules.IsBigJoker(c) {
+			st.Record.BigJoker++
+			continue
+		} else if rules.IsSmallJoker(c) {
+			st.Record.SmallJoker++
+			continue
+		}
+		switch c.Rank {
+		case rules.RA:
+			st.Record.A[suitToID[c.Suit]]++
+		case rules.RK:
+			st.Record.K[suitToID[c.Suit]]++
+		case rules.R10:
+			st.Record.Ten[suitToID[c.Suit]]++
+		}
+	}
+}
+
+var suitIndex = map[rules.SuitClass]int{
+	rules.SCTrump: 0,
+	rules.SCH:     1,
+	rules.SCS:     2,
+	rules.SCC:     3,
+	rules.SCD:     4,
+}
+
+func groupBySuitClass(cards []rules.Card) [][]rules.Card {
+	buckets := make([][]rules.Card, 5)
+	for _, c := range cards {
+		if idx, ok := suitIndex[c.SuitClass]; ok {
+			buckets[idx] = append(buckets[idx], c)
+		}
+	}
+	// 压缩非空桶，保持原顺序
+	result := make([][]rules.Card, 0, 5)
+	for _, bucket := range buckets {
+		if len(bucket) > 0 {
+			result = append(result, bucket)
+		}
+	}
+	return result
+}

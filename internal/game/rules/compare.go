@@ -19,10 +19,10 @@ func rankValue(c Card, t Trump) int {
 	if !isTrumpCard(c, t) {
 		return c.Rank.BaseValue()
 	}
-	if isBigJoker(c) {
+	if IsBigJoker(c) {
 		return RVBigJoker
 	}
-	if isSmallJoker(c) {
+	if IsSmallJoker(c) {
 		return RVSmallJoker
 	}
 	if c.Rank == t.LevelRank {

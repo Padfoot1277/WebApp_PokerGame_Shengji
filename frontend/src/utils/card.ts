@@ -12,6 +12,10 @@ export function suitToSymbol(suit: string): { symbol: string; color: 'red' | 'bl
             return { symbol: '🃏', color: 'joker' }
         case 'BJ':
             return { symbol: '👑', color: 'joker' }
+        case '小王':
+            return { symbol: '🃏', color: 'joker' }
+        case '大王':
+            return { symbol: '👑', color: 'joker' }
         default:
             return { symbol: suit, color: 'black' }
     }

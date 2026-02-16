@@ -80,6 +80,14 @@ type RoundOutcome struct {
 	NextStarterSeat int
 }
 
+type Record struct {
+	A          [4]int `json:"a"` // 按固定顺序♠♥♣♦
+	K          [4]int `json:"k"`
+	Ten        [4]int `json:"ten"`
+	BigJoker   int    `json:"bigJoker"`
+	SmallJoker int    `json:"smallJoker"`
+}
+
 type GameState struct {
 	RoomID  string `json:"roomId"`
 	Phase   Phase  `json:"phase"`
@@ -112,6 +120,8 @@ type GameState struct {
 	Trick      TrickState `json:"trick"`
 	Points     int        `json:"points"`     // 本墩打家吃分（末墩抠底之前）
 	TrickIndex int        `json:"trickIndex"` // 本小局第几墩，从0开始
+	HideRecord bool       `json:"hideRecord"`
+	Record     Record     `json:"record"` // 记牌功能
 
 	// ---- 末墩抠底 ----
 	BottomRevealed bool         `json:"bottomRevealed"`         // 是否已经抠/公开底牌（用于断线重连）
