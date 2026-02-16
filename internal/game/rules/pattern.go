@@ -15,9 +15,9 @@ type Trump struct {
 type BlockType string
 
 const (
-	BlockSingle  BlockType = "single"
-	BlockPair    BlockType = "pair"
-	BlockTractor BlockType = "tractor"
+	BlockSingle  BlockType = "单张"
+	BlockPair    BlockType = "对子"
+	BlockTractor BlockType = "拖拉机"
 )
 
 // Block 基础牌组

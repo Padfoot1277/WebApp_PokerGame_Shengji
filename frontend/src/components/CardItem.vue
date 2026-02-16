@@ -58,7 +58,10 @@ function onClick(e: MouseEvent) {
 
   background: #eeeeee;   /* 默认 */
   color: #000;
-  font-size: 20px;
+  display: flex;              /* ⭐ 关键 */
+  align-items: center;        /* 垂直居中 */
+  justify-content: center;    /* 水平居中 */
+  gap: 2px;
   transition:
       background 0.15s ease,
       border-color 0.15s ease,
@@ -124,6 +127,11 @@ function onClick(e: MouseEvent) {
 }
 
 .rank {
-  margin-left: 2px;
+  font-size: 20px;
+  font-weight: 500;
+}
+
+.suit {
+  font-size: 15px;
 }
 </style>

@@ -114,7 +114,7 @@ type subReq struct {
 }
 
 func (s subReq) String() string {
-	return fmt.Sprintf("subReq{bt=%s,len=%d,need=%d}", s.bt, s.tractorLen, s.needCards)
+	return fmt.Sprintf("{牌型：%s，张数：%d}", s.bt, s.needCards)
 }
 
 // flattenLeadReqs 把 Blocks 扁平化为 req 列表

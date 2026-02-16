@@ -86,6 +86,7 @@ type Record struct {
 	Ten        [4]int `json:"ten"`
 	BigJoker   int    `json:"bigJoker"`
 	SmallJoker int    `json:"smallJoker"`
+	Num        [4]int `json:"num"`
 }
 
 type GameState struct {

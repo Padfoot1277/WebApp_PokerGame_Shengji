@@ -61,7 +61,7 @@ watch(totalCount, () => clear())
 
 <template>
   <div class="panel hand-area">
-    <h4>手牌</h4>
+    <h4>当前手牌</h4>
 
     <div class="suit-groups">
       <!-- 外层 suitClass -->

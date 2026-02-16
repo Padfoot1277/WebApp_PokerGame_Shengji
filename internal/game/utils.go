@@ -194,8 +194,8 @@ func canDigBottom(st *GameState, winner int) (bool, string) {
 var suitToID = map[rules.Suit]int{
 	rules.Spade:   0,
 	rules.Heart:   1,
-	rules.Diamond: 2,
-	rules.Club:    3,
+	rules.Club:    2,
+	rules.Diamond: 3,
 }
 
 func updateRecord(st *GameState, cards []rules.Card) {
@@ -207,6 +207,7 @@ func updateRecord(st *GameState, cards []rules.Card) {
 			st.Record.SmallJoker++
 			continue
 		}
+		st.Record.Num[suitToID[c.Suit]]++
 		switch c.Rank {
 		case rules.RA:
 			st.Record.A[suitToID[c.Suit]]++

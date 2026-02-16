@@ -4,10 +4,10 @@ package rules
 type Suit string
 
 const (
-	Spade      Suit = "S"
-	Heart      Suit = "H"
-	Club       Suit = "C"
-	Diamond    Suit = "D"
+	Spade      Suit = "♠️"
+	Heart      Suit = "♥️"
+	Club       Suit = "♣️"
+	Diamond    Suit = "♦️"
 	SmallJoker Suit = "SJ"
 	BigJoker   Suit = "BJ"
 	SuitAttack Suit = "No"

@@ -26,7 +26,7 @@ function getVal(arr: number[] | undefined, idx: number) {
 
 <template>
   <div v-if="showBoard" class="panel high-board">
-    <h4>记牌</h4>
+    <h4>记牌器</h4>
 
     <div v-if="record" class="grid">
       <!-- 王 -->
@@ -34,6 +34,18 @@ function getVal(arr: number[] | undefined, idx: number) {
         👑 大王 {{ record.bigJoker ?? 0 }}
         <span class="gap"></span>
         🃏 小王 {{ record.smallJoker ?? 0 }}
+      </div>
+
+      <!-- Num -->
+      <div class="row">
+        <div class="rank">总数</div>
+        <div
+            v-for="(s, i) in SUITS"
+            :key="'A'+i"
+            class="cell"
+        >
+          {{ s }} {{ getVal(record.num, i) }}
+        </div>
       </div>
 
       <!-- A -->
@@ -72,8 +84,6 @@ function getVal(arr: number[] | undefined, idx: number) {
         </div>
       </div>
 
-
-
     </div>
 
     <div v-else class="hint">
@@ -101,13 +111,13 @@ function getVal(arr: number[] | undefined, idx: number) {
 }
 
 .rank {
-  width: 28px;
+  width: 40px;
   font-weight: 600;
   text-align: center;
 }
 
 .cell {
-  min-width: 48px;
+  min-width: 60px;
   font-size: 20px;
   color: var(--text-primary);
 }

@@ -181,6 +181,7 @@ const trumpSuitInfo = computed(() => {
   color: #333;
   line-height: 20px;
   white-space: nowrap;
+  font-size: 14px; /* 原来 13px，改大一点即可 */
 }
 
 .tag strong {
@@ -209,14 +210,6 @@ const trumpSuitInfo = computed(() => {
   margin-left: 2px;
   display: inline-flex;
   align-items: center;
-}
-
-/* 花色颜色示例 */
-.suit.red {
-  color: #d4380d;
-}
-.suit.black {
-  color: #222;
 }
 
 </style>

@@ -56,9 +56,9 @@ function seatStatus(idx: number): string {
 
   // trump_fight：非坐家改/攻主窗口
   if (view.phase === 'trump_fight') {
-    if (idx === view.bottomOwnerSeat) return '等待他人改/攻主'
+    if (idx === view.bottomOwnerSeat) return '等待他人改主/攻主'
     if (view.fightPassedSeats[idx]) return '已跳过'
-    return '改/攻主思考中'
+    return '改主/攻主思考中'
   }
 
   // play_trick / follow_trick：出牌/跟牌
@@ -116,8 +116,8 @@ function isActiveSeat(idx: number): boolean {
     >
       <div class="seat-head">
         <strong> {{ item.idx }}号位</strong>
-        <span v-if="item.idx === v?.mySeat">（我）</span>
-        <span v-else>（{{ item.s.uid || '空' }}）</span>
+        <span v-if="item.idx === v?.mySeat">{{ ' 我' }}</span>
+        <span v-else>  {{' ' + item.s.uid}}  </span>
       </div>
 
       <div class="status">

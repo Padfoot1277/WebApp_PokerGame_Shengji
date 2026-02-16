@@ -252,9 +252,9 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 
 		// 进入下一阶段：坐家收底牌、重扣底牌
 		enterBottomPhase(&st, seat)
-		notice := fmt.Sprintf("成功定主，主牌为%s，级牌为%s，请扣底牌", st.Trump.LevelRank, st.Trump.Suit)
+		notice := fmt.Sprintf("成功定主，主牌为%s，级牌为%s，请扣底牌", st.Trump.Suit, st.Trump.LevelRank)
 		if locked {
-			notice = fmt.Sprintf("成功定主，主牌为%s（已锁定），级牌为%s，请扣底牌", st.Trump.LevelRank, st.Trump.Suit)
+			notice = fmt.Sprintf("成功定主，主牌为%s（已锁定），级牌为%s，请扣底牌", st.Trump.Suit, st.Trump.LevelRank)
 		}
 		return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 
@@ -695,19 +695,19 @@ func settleTrickEnd(st *GameState) string {
 	st.TrickIndex++
 	notice := ""
 	if inCallerGroup(st, winner) {
-		notice = fmt.Sprintf("本墩结束，赢家=%d号位（坐家），共跑分=%d，打家不得分", winner, points)
+		notice = fmt.Sprintf("本墩结束，赢家:%d号位（坐家），共跑分:%d，打家不得分", winner, points)
 	} else {
-		notice = fmt.Sprintf("本墩结束，赢家=%d号位（打家），本墩得分=%d，打家累计分=%d", winner, points, st.Points)
+		notice = fmt.Sprintf("本墩结束，赢家:%d号位（打家），共吃分:%d，打家累计分:%d", winner, points, st.Points)
 	}
 
 	// 末墩抠底：在“所有人手牌为空”时触发
 	if isLastTrickAfterThisTrick(st) {
 		st.Trick.TurnSeat = -1
 		digNotice := settleDigBottom(st, winner)
-		notice += "；" + digNotice
+		notice += "。" + digNotice
 		roundNotice := settleRoundEnd(st)
 		if roundNotice != "" {
-			notice += "；" + roundNotice
+			notice += "。" + roundNotice
 		}
 	}
 
@@ -778,11 +778,11 @@ func settleRoundEnd(st *GameState) string {
 
 	// 注意：这里不清 Points/Trick 等，让前端还能看到本局结果
 	notice := fmt.Sprintf(
-		"小局结束：打家得分=%d，结果=%s；坐家(+%d) 打家(+%d)；下一局先手定主权=玩家%d（需其点击开始下一局）",
+		"小局结束：打家得分=%d，结果=%s，坐家+%d 打家+%d，下一局先手定主权=玩家%d（需其点击开始下一局）",
 		st.RoundPointsFinal, st.RoundResultLabel, st.CallerDelta, st.DefenderDelta, st.NextStarterSeat,
 	)
 	if st.Points >= 80 {
-		notice += fmt.Sprintf("（让先手：起点从本局CallerSeat=%d顺延到%d，按序定主可能仍定不起）", st.CallerSeat, st.NextStarterSeat)
+		notice += fmt.Sprintf("（换坐：叫主起点从%d号位顺延到%d号位）", st.CallerSeat, st.NextStarterSeat)
 	}
 	return notice
 }

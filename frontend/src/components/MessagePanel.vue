@@ -40,7 +40,7 @@ watch(
 
 <style scoped>
 .message-panel {
-  max-height: 160px;
+  max-height: 82px;
   overflow-y: auto;
   padding: 10px;
 }
