@@ -1,13 +1,13 @@
 :root {
-    --bg-main: #1e1e1e;
-    --bg-panel: #2a2a2a;
+    --bg-main: #ffffff;
+    --bg-panel: #c7edcc;
     --bg-card: #333;
 
-    --text-main: #eee;
-    --text-muted: #aaa;
+    --text-main: #000;
+    --text-muted: #111111;
 
     --color-error: #ff4d4f;
-    --color-notice: #4da3ff;
+    --color-notice: #0987ee;
 
     --panel-gap: 12px;
     --radius: 8px;

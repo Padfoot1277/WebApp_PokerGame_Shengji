@@ -106,7 +106,7 @@ function startGame() {
 }
 
 .seat {
-  background: var(--bg-card);
+  background: #c7edcc;
   padding: 8px;
   border-radius: var(--radius);
 }

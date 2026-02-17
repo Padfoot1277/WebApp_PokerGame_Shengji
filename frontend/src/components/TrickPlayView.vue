@@ -45,8 +45,8 @@ const suitClassText = computed(() => props.move?.suitClass ?? '')
       </div>
 
       <div class="meta">
-        <span v-if="suitClassText" class="meta-item">🧩 {{ suitClassText }}</span>
-        <span v-if="move.info" class="meta-item">ℹ️ {{ move.info }}</span>
+        <span v-if="suitClassText" class="meta-item">✿ {{ suitClassText }}</span>
+        <span v-if="move.info" class="meta-item"> {{ move.info }}</span>
       </div>
     </template>
   </div>
@@ -57,8 +57,7 @@ const suitClassText = computed(() => props.move?.suitClass ?? '')
 .trick-mini {
   width: 100%;              /* 你可以改 180/200/240 */
   max-width: 60vw;
-  background: rgba(30, 30, 30, 0.9);
-  border: 1px solid #444;
+  background: #c7edcc;
   border-radius: 10px;
   padding: 6px;
   font-size: 12px;
@@ -103,6 +102,7 @@ const suitClassText = computed(() => props.move?.suitClass ?? '')
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
+  font-size: 16px;
 }
 
 .meta-item {

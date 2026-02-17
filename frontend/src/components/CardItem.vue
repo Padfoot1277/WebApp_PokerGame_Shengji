@@ -56,7 +56,7 @@ function onClick(e: MouseEvent) {
 
   border: 1px solid #5a5a5a;
 
-  background: #eeeeee;   /* 默认 */
+  background: #fefefe;   /* 默认 */
   color: #000;
   display: flex;              /* ⭐ 关键 */
   align-items: center;        /* 垂直居中 */
@@ -76,13 +76,13 @@ function onClick(e: MouseEvent) {
 
 /* 👇 关键：覆盖所有非 selected 状态 */
 .card:not(.selected){
-  background: #eeeeee;
+  background: #f8f8f8;
   color: #000;
 }
 
 /* 选中态 */
 .card.selected {
-  background: #6b5cff;
+  background: rgba(107, 92, 255, 0.9);
   border-color: #8a80ff;
   color: #fff;
   box-shadow: 0 0 6px rgba(107, 92, 255, 0.6);
@@ -132,6 +132,6 @@ function onClick(e: MouseEvent) {
 }
 
 .suit {
-  font-size: 15px;
+  font-size: 14px;
 }
 </style>

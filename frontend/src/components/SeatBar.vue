@@ -44,7 +44,7 @@ function seatStatus(idx: number): string {
   // call_trump：轮到谁/谁已跳过
   if (view.phase === 'call_trump') {
     if (view.callPassedSeats[idx]) return '已跳过'
-    if (idx === view.callTurnSeat && view.callMode === 'ordered') return '定主中（轮到）'
+    if (idx === view.callTurnSeat && view.callMode === 'ordered') return '轮到定主'
     if (view.callMode === 'race') return '抢主中'
     return '等待定主'
   }
@@ -66,8 +66,8 @@ function seatStatus(idx: number): string {
   if (view.phase === 'play_trick' || view.phase === 'follow_trick') {
     const pm = view.trick?.playedMoves?.[idx]
     const hasPlayed = !!pm
-    if (hasPlayed) return idx === view.trick.leaderSeat ? '已出牌（先手）' : '已出牌'
-    if (idx === view.trick.turnSeat) return '出牌中（轮到）'
+    if (hasPlayed) return idx === view.trick.leaderSeat ? '已先手出牌' : '已出牌'
+    if (idx === view.trick.turnSeat) return '轮到出牌'
     return '等待出牌'
   }
 
@@ -99,7 +99,10 @@ function isActiveSeat(idx: number): boolean {
   return false
 }
 
-
+function seatLabel(idx: number): string {
+  const map = ['⓪', '①', '②', '③']
+  return map[idx] ?? String(idx)
+}
 
 </script>
 
@@ -115,25 +118,28 @@ function isActiveSeat(idx: number): boolean {
   }"
     >
       <div class="seat-head">
-        <strong> {{ item.idx }}号位</strong>
-        <span v-if="item.idx === v?.mySeat">{{ ' 我' }}</span>
-        <span v-else>  {{' ' + item.s.uid}}  </span>
+        <strong>
+          {{ seatLabel(item.idx) }}{{' ' + item.s.uid}}
+          <span v-if="item.idx === v?.mySeat">{{ '(我)' }}</span>
+        </strong>
       </div>
 
       <div class="status">
-        状态：<span class="badge">{{ seatStatus(item.idx) }}</span>
+        <span class="badge">{{ seatStatus(item.idx) }}</span>
       </div>
 
       <!-- ✅ 右上角浮层 -->
       <div class="corner-badges">
-        <span v-if="item.idx === trickToShow?.leaderSeat" class="badge leader" title="先手">🚩</span>
-        <span v-if="item.idx === liveTrick?.turnSeat" class="badge turn" title="轮到">👉</span>
-        <span v-if="item.idx === biggerSeat?.biggerSeat" class="badge bigger" title="当前最大">⭐️</span> <!-- 可供替换的emoji 👍⭐️☀️🌟🔥⚡️-->
+<!--        <span v-if="item.idx === trickToShow?.leaderSeat" class="badge leader" title="先手">🚩</span>-->
+<!--        <span v-if="item.idx === liveTrick?.turnSeat" class="badge turn" title="轮到">👈</span>-->
+        <span v-if="item.idx === biggerSeat?.biggerSeat" class="badge bigger" title="当前最大">🔥</span> <!-- 可供替换的emoji 👍⭐️☀️🌟🔥⚡️-->
+      </div>
+      <div class="play-area">
+        <TrickPlayView
+            :move="trickToShow?.playedMoves?.[item.idx] ?? null"
+        />
       </div>
 
-      <TrickPlayView
-          :move="trickToShow?.playedMoves?.[item.idx] ?? null"
-      />
     </div>
 
   </div>
@@ -147,7 +153,7 @@ function isActiveSeat(idx: number): boolean {
 }
 
 .seat {
-  background: var(--bg-card);
+  background: #c7edcc;
   padding: 8px;
   border-radius: var(--radius);
 }
@@ -161,25 +167,39 @@ function isActiveSeat(idx: number): boolean {
   display: inline-block;
   padding: 2px 6px;
   border-radius: 999px;
-  background: #444;
-  font-size: 12px;
+  background: #0abc24;
+  font-size: 15px;
+  color: white;
 }
 
 .seat.me {
-  outline: 2px solid #4da3ff; /* 蓝框 */
+  background: rgba(77, 163, 255, 0.35);
+}
+.seat.me .badge {
+  background: rgba(77, 163, 255, 0.85);
+  color: white;
 }
 
 .seat.active {
-  box-shadow: 0 0 0 2px #f5d000 inset; /* 黄框 */
+  box-shadow: 0 0 0 4px #f5d000 inset; /* 黄框 */
+}
+
+.play-area {
+  border-radius: 8px;
+  background: #c7edcc;
+}
+
+.seat.me .play-area {
+  background: #bfddfd;
+}
+.seat.me .trick-mini {
+  background: #bfddfd;
 }
 
 .seat {
   position: relative;
-  /* 你原来的样式保持 */
 }
 
-/* 右上角角标：真正浮动，不占布局 */
-/* 右上角角标：真正浮动，不占布局 */
 .corner-badges {
   position: absolute;
   top: 6px;
@@ -203,24 +223,27 @@ function isActiveSeat(idx: number): boolean {
   font-size: 18px;
   line-height: 1;
 
-  background: rgba(30, 30, 30, 0.8);
-  border: 1px solid #444;
+  background: #ffffff;
+  border: 2px solid #444;
 }
 
 /* 轮到 / 先手：用边框强调 */
 .corner-badges .badge.turn {
+  background: white;
   border-color: #f5d000;
 }
 .corner-badges .badge.leader {
+  background: white;
   border-color: pink;
 }
 
 .corner-badges .badge.bigger {
-  border-color: yellow;
+  background: white;
+  border-color: rgba(255, 69, 0, 0.5);
 }
 
 .seat-head strong {
-  font-size: 20px;   /* 自己调大小 */
+  font-size: 20px;
 }
 
 </style>

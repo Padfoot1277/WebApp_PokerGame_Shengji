@@ -4,7 +4,7 @@ import { useGameStore } from '../store/game'
 
 const game = useGameStore()
 
-const wsBase = ref('ws://192.168.1.109:8080/ws')  // 请替换为当前服务器的IP地址，我这里是192.168.1.109，监听的是8080端口
+const wsBase = ref('ws://192.168.1.105:8080/ws')  // 请替换为当前服务器的IP地址，我这里是192.168.1.109，监听的是8080端口
 const roomId = ref('room1')
 
 // 允许为空：为空则后端生成 anon-xxx
@@ -30,7 +30,7 @@ function connect() {
     <h3>房间信息</h3>
 
     <div class="row">
-      <label>用户ID</label>
+      <label>用户昵称</label>
       <input v-model="uid" placeholder="（可空，将根据时间赋值）" />
     </div>
 
@@ -68,5 +68,8 @@ input { flex: 1; min-height: 36px; padding: 0 8px; }
   .panel button:hover {
     filter: brightness(1.1);
   }
+}
+button:hover {
+  background: rgba(77, 163, 255, 0.7) !important;
 }
 </style>

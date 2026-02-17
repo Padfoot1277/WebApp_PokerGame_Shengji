@@ -654,7 +654,6 @@ func followTrick(st *GameState, seat int, selected []rules.Card) (PlayedMove, *A
 				return PlayedMove{}, ErrSystem.WithInfo(decomposeErr.Error())
 			}
 			currentMove.Move.Blocks = blockGroups
-			currentMove.Info = "当前最大"
 		}
 	}
 	return currentMove, nil
@@ -853,7 +852,7 @@ func reduceStartNextRound(st GameState, uid string, typ ClientEventType, payload
 	st.Trick = TrickState{} // 下一局进入 PhasePlayTrick 时再初始化
 	st.BottomOwnerSeat = -1
 	st.BottomCount = 0
-	st.BottomRevealed = true
+	st.BottomRevealed = false
 	// st.Bottom / st.Seats[i].Hand 等会在发牌时覆盖（Bottom 是 json:"-" 私有字段）
 
 	// 清理 Trump（下一局重新定主）

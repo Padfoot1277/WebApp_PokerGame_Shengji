@@ -36,8 +36,8 @@ func NewRoom(id string) *Room {
 		st.Seats[i].Team = game.TeamOfSeat(i)
 	}
 	// 初始化双方级牌 = 2
-	st.Teams[0].LevelRank = rules.R2
-	st.Teams[1].LevelRank = rules.R2
+	st.Teams[0].LevelRank = rules.R6
+	st.Teams[1].LevelRank = rules.R4
 
 	st.RoundIndex = 0
 	st.NextStarterSeat = 0 // 后续小局用（结算写回）

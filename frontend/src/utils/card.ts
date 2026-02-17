@@ -9,11 +9,11 @@ export function suitToSymbol(suit: string): { symbol: string; color: 'red' | 'bl
         case 'D':
             return { symbol: '♦️', color: 'red' }
         case 'SJ':
-            return { symbol: '🃏', color: 'joker' }
+            return { symbol: '🎩', color: 'joker' }
         case 'BJ':
             return { symbol: '👑', color: 'joker' }
         case '小王':
-            return { symbol: '🃏', color: 'joker' }
+            return { symbol: '🎩', color: 'joker' }
         case '大王':
             return { symbol: '👑', color: 'joker' }
         default:

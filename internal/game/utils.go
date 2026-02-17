@@ -191,11 +191,19 @@ func canDigBottom(st *GameState, winner int) (bool, string) {
 	return true, ""
 }
 
-var suitToID = map[rules.Suit]int{
-	rules.Spade:   0,
-	rules.Heart:   1,
-	rules.Club:    2,
-	rules.Diamond: 3,
+func (r *Record) getSuitRecord(suit rules.Suit) *SuitRecord {
+	switch suit {
+	case rules.Spade:
+		return &r.Spade
+	case rules.Heart:
+		return &r.Heart
+	case rules.Diamond:
+		return &r.Diamond
+	case rules.Club:
+		return &r.Club
+	default:
+		return nil
+	}
 }
 
 func updateRecord(st *GameState, cards []rules.Card) {
@@ -203,18 +211,23 @@ func updateRecord(st *GameState, cards []rules.Card) {
 		if rules.IsBigJoker(c) {
 			st.Record.BigJoker++
 			continue
-		} else if rules.IsSmallJoker(c) {
+		}
+		if rules.IsSmallJoker(c) {
 			st.Record.SmallJoker++
 			continue
 		}
-		st.Record.Num[suitToID[c.Suit]]++
+		sr := st.Record.getSuitRecord(c.Suit)
+		if sr == nil {
+			continue
+		}
+		sr.Num++
 		switch c.Rank {
 		case rules.RA:
-			st.Record.A[suitToID[c.Suit]]++
+			sr.A++
 		case rules.RK:
-			st.Record.K[suitToID[c.Suit]]++
+			sr.K++
 		case rules.R10:
-			st.Record.Ten[suitToID[c.Suit]]++
+			sr.Ten++
 		}
 	}
 }

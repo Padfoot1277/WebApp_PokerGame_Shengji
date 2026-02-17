@@ -250,20 +250,34 @@ function callPass() {
 }
 
 button {
-  background: #3498db;
+  background: rgba(255, 215, 0, 1);
   margin-right: 6px;
   margin-bottom: 6px;
   min-width: 60px;
   min-height: 44px;
   border: 1px solid transparent;
+
+  /* 关键：去掉默认交互效果 */
+  outline: none;
+  box-shadow: none;
+  transition: none;
 }
 
-button:not(:disabled) {
-  border-color: #4da3ff; /* 可操作即高亮 */
+/* 覆盖 hover / focus / active */
+button:hover,
+button:focus,
+button:active {
+  background: rgba(255, 215, 0, 1);
+  outline: none;
+  box-shadow: none;
 }
 
+/* 禁用态 */
 button:disabled {
-  opacity: 0.4;
+  opacity: 0.3;
   cursor: not-allowed;
+}
+button:hover {
+  background: rgba(255, 215, 0, 0.7) !important;
 }
 </style>

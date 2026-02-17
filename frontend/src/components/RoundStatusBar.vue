@@ -13,12 +13,12 @@ const beaterScore = computed(() => v.value?.points ?? -1)
 
 const phaseText: Record<string, string> = {
   lobby: '准备',
-  dealing: '发牌中',
+  dealing: '发牌',
   call_trump: '定主',
   bottom: '扣底',
-  trump_fight: '攻改窗口',
-  play_trick: '出牌中',
-  follow_trick: '跟牌中',
+  trump_fight: '攻改',
+  play_trick: '出牌',
+  follow_trick: '跟牌',
   round_settle: '小局结束',
 }
 const nextRoundOwner = computed(() => v.value?.nextStarterSeat ?? -1)
@@ -27,6 +27,11 @@ const trumpSuitInfo = computed(() => {
   if (!trump.value?.hasTrumpSuit) return null
   return suitToSymbol(trump.value.suit)
 })
+
+function seatLabel(idx: number): string {
+  const map = ['⓪', '①', '②', '③']
+  return map[idx] ?? String(idx)
+}
 </script>
 
 <template>
@@ -40,7 +45,7 @@ const trumpSuitInfo = computed(() => {
       <template v-if="starterSeat >= 0">
     <span class="tag">
       <strong>坐庄</strong>
-      {{ starterSeat }}号位
+      {{ seatLabel(starterSeat) }}
     </span>
 
         <span class="tag">

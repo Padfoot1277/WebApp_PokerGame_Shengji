@@ -80,13 +80,20 @@ type RoundOutcome struct {
 	NextStarterSeat int
 }
 
+type SuitRecord struct {
+	A   int `json:"a"`
+	K   int `json:"k"`
+	Ten int `json:"ten"`
+	Num int `json:"num"`
+}
+
 type Record struct {
-	A          [4]int `json:"a"` // 按固定顺序♠♥♣♦
-	K          [4]int `json:"k"`
-	Ten        [4]int `json:"ten"`
-	BigJoker   int    `json:"bigJoker"`
-	SmallJoker int    `json:"smallJoker"`
-	Num        [4]int `json:"num"`
+	Spade      SuitRecord `json:"spade"`
+	Heart      SuitRecord `json:"heart"`
+	Diamond    SuitRecord `json:"diamond"`
+	Club       SuitRecord `json:"club"`
+	BigJoker   int        `json:"bigJoker"`
+	SmallJoker int        `json:"smallJoker"`
 }
 
 type GameState struct {
