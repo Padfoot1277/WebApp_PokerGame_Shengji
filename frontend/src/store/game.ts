@@ -28,7 +28,7 @@ export const useGameStore = defineStore('game', {
         },
 
         handleServerMessage(msg: ServerMessage) {
-            console.log('[WS MESSAGE]', msg)  // Debug专用
+            // console.log('[WS MESSAGE]', msg)  // Debug专用
             switch (msg.type) {
                 case 'hello':
                     this.uid = msg.uid

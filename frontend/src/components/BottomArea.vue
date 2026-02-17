@@ -79,7 +79,7 @@ const bottomAward = computed(() => v.value?.bottomAward ?? 0)
 
 <style scoped>
 .bottom-area {
-  min-height: 96px;
+  min-height: 70px;
 }
 
 .cards {

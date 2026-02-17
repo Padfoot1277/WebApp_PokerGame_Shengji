@@ -42,6 +42,7 @@ func reduceLobby(st GameState, uid string, typ ClientEventType, payload any) (Re
 		for i := 0; i < 4; i++ {
 			if st.Seats[i].UID == uid && i != p.Seat {
 				st.Seats[i] = SeatState{}
+				st.Seats[i].Team = p.Seat % 2
 			}
 		}
 		seat.UID = uid

@@ -26,9 +26,9 @@ function connect() {
 </script>
 
 <template>
-  <div class="panel">
-    <h3>房间信息</h3>
 
+  <h3>房间信息</h3>
+  <div class="panel">
     <div class="row">
       <label>用户昵称</label>
       <input v-model="uid" placeholder="（可空，将根据时间赋值）" />
@@ -48,28 +48,84 @@ function connect() {
       连接
     </button>
 
-    <div class="hint">
-      当前用户ID：{{ game.uid ?? '未连接' }}
-    </div>
   </div>
 </template>
 
 <style scoped>
-.panel { background: var(--bg-panel); padding: 12px; border-radius: var(--radius); }
-.row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
-label { width: 110px; color: var(--text-muted); font-size: 12px; }
-input { flex: 1; min-height: 36px; padding: 0 8px; }
-.hint { margin-top: 8px; font-size: 12px; color: var(--text-muted); }
+.panel {
+  background: var(--bg-panel);
+  padding: 16px 18px;
+  border-radius: var(--radius);
+}
+
+/* 标题层级更清晰 */
+.panel h3 {
+  margin: 0 0 14px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+/* 每一行对齐更规整 */
+.row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* label 对齐与层级 */
+label {
+  width: 100px;
+  flex-shrink: 0;
+  color: var(--text-muted);
+  font-size: 16px;
+  text-align: left;
+  letter-spacing: 0.5px;
+}
+
+/* 输入框统一尺寸 */
+input {
+  flex: 1;
+  height: 38px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font-size: 14px;
+  line-height: 38px;
+  box-sizing: border-box;
+  border-color: #ffffff;
+}
+
+/* 连接按钮 */
 .panel button {
+  margin-top: 6px;
+  height: 38px;
+  padding: 0 18px;
+  font-size: 16px;
+  font-weight: 500;
+  border-radius: 6px;
   background: #4da3ff;
   color: #fff;
 }
+
+/* hover 保留你原来的逻辑 */
 @media (hover: hover) and (pointer: fine) {
   .panel button:hover {
     filter: brightness(1.1);
   }
 }
+
+/* 去掉你原本的 !important 覆盖式 hover */
 button:hover {
-  background: rgba(77, 163, 255, 0.7) !important;
+  background: rgba(77, 163, 255, 0.7);
 }
+
+/* 底部提示信息 */
+.hint {
+  margin-top: 12px;
+  padding-top: 8px;
+  font-size: 12px;
+  color: var(--text-muted);
+  border-top: 1px solid rgba(2, 2, 2, 0.6);
+}
+
 </style>

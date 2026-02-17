@@ -5,7 +5,7 @@ import SeatList from '../components/SeatList.vue'
 
 <template>
   <div class="view-container">
-    <h2>房间界面（Lobby）</h2>
+    <h2>大厅-房间界面</h2>
 
     <ConnectionPanel />
 

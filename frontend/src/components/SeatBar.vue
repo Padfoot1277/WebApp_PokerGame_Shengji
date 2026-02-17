@@ -13,7 +13,11 @@ const orderedSeats = computed(() =>
     seatOrder.map((idx) => ({ idx, s: seats.value[idx] }))
 )
 
+const isPlayPhase = computed(() => v.value?.phase === 'play_trick')
+
 const trickToShow = computed(() => {
+  if (!isPlayPhase.value) return null
+
   const t = v.value?.trick
   if (!t) return null
 
@@ -28,9 +32,15 @@ const trickToShow = computed(() => {
   // 未结算：展示当前墩
   return t
 })
-const liveTrick = computed(() => v.value?.trick)
-const biggerSeat = computed(() => v.value?.trick)
+const liveTrick = computed(() => {
+  if (!isPlayPhase.value) return null
+  return v.value?.trick
+})
 
+const biggerSeat = computed(() => {
+  if (!isPlayPhase.value) return null
+  return v.value?.trick
+})
 
 function seatStatus(idx: number): string {
   const view = v.value
@@ -130,9 +140,9 @@ function seatLabel(idx: number): string {
 
       <!-- ✅ 右上角浮层 -->
       <div class="corner-badges">
-<!--        <span v-if="item.idx === trickToShow?.leaderSeat" class="badge leader" title="先手">🚩</span>-->
-<!--        <span v-if="item.idx === liveTrick?.turnSeat" class="badge turn" title="轮到">👈</span>-->
-        <span v-if="item.idx === biggerSeat?.biggerSeat" class="badge bigger" title="当前最大">🔥</span> <!-- 可供替换的emoji 👍⭐️☀️🌟🔥⚡️-->
+        <span v-if="item.idx === trickToShow?.leaderSeat" class="badge leader" title="先手">🚩</span>
+        <span v-if="item.idx === liveTrick?.turnSeat" class="badge turn" title="轮到">👈</span>
+        <span v-if="item.idx === biggerSeat?.biggerSeat " class="badge bigger" title="当前最大">🔥</span> <!-- 可供替换的emoji 👍⭐️☀️🌟🔥⚡️-->
       </div>
       <div class="play-area">
         <TrickPlayView

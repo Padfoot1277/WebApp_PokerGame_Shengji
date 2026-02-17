@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -31,6 +32,9 @@ type Router interface {
 type Conn struct {
 	ws   *websocket.Conn
 	send chan []byte
+	done chan struct{}
+
+	closeOnce sync.Once
 
 	uid    string
 	roomID string
@@ -41,15 +45,6 @@ type HelloMsg struct {
 	UID  string `json:"uid"`
 }
 
-func (c *Conn) sendHello() {
-	msg := HelloMsg{
-		Type: "hello",
-		UID:  c.uid,
-	}
-	b, _ := json.Marshal(msg)
-	c.send <- b
-}
-
 func (c *Conn) UID() string    { return c.uid }
 func (c *Conn) RoomID() string { return c.roomID }
 
@@ -58,18 +53,26 @@ func (c *Conn) SendJSON(v any) error {
 	if err != nil {
 		return err
 	}
+
 	select {
 	case c.send <- b:
+		return nil
+	case <-c.done:
+		// 已关闭
+		return websocket.ErrCloseSent
 	default:
-		// 发送队列满：直接丢弃或断开（这里先断开更容易发现问题）
+		// 发送队列满，认为连接异常
 		return websocket.ErrCloseSent
 	}
-	return nil
 }
 
 func (c *Conn) Close() error {
-	close(c.send)
-	return c.ws.Close()
+	var err error
+	c.closeOnce.Do(func() {
+		close(c.done)      // 通知所有 goroutine 退出
+		err = c.ws.Close() // 关闭底层 websocket
+	})
+	return err
 }
 
 func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
@@ -83,6 +86,7 @@ func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
 	if uid == "" {
 		uid = time.Now().Format("150405")
 	}
+
 	roomID := r.URL.Query().Get("room")
 	if roomID == "" {
 		roomID = "default"
@@ -91,6 +95,7 @@ func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
 	c := &Conn{
 		ws:     wsConn,
 		send:   make(chan []byte, 64),
+		done:   make(chan struct{}),
 		uid:    uid,
 		roomID: roomID,
 	}
@@ -101,9 +106,10 @@ func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
 	go c.writeLoop()
 	c.readLoop(router)
 
+	// readLoop 退出说明连接断开
 	router.OnDisconnect(c)
 	hub.unregister <- c
-	_ = wsConn.Close()
+	_ = c.Close()
 }
 
 func (c *Conn) readLoop(router Router) {
@@ -114,10 +120,17 @@ func (c *Conn) readLoop(router Router) {
 	})
 
 	for {
+		select {
+		case <-c.done:
+			return
+		default:
+		}
+
 		_, data, err := c.ws.ReadMessage()
 		if err != nil {
 			return
 		}
+
 		var env Envelope
 		if err := json.Unmarshal(data, &env); err != nil {
 			_ = c.SendJSON(map[string]any{
@@ -127,6 +140,7 @@ func (c *Conn) readLoop(router Router) {
 			})
 			continue
 		}
+
 		router.OnMessage(c, env.Type, env.Payload)
 	}
 }
@@ -137,19 +151,22 @@ func (c *Conn) writeLoop() {
 
 	for {
 		select {
-		case msg, ok := <-c.send:
-			if !ok {
-				return
-			}
+		case msg := <-c.send:
 			_ = c.ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.ws.WriteMessage(websocket.TextMessage, msg); err != nil {
+				_ = c.Close()
 				return
 			}
+
 		case <-ticker.C:
 			_ = c.ws.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.ws.WriteMessage(websocket.PingMessage, nil); err != nil {
+				_ = c.Close()
 				return
 			}
+
+		case <-c.done:
+			return
 		}
 	}
 }
