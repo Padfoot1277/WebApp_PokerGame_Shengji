@@ -20,7 +20,28 @@ export function render(state, buttons = [], opts = {}) {
     events = {},
     drawn = [],
     storage = new Map([["shengji-room", "F8K2Q6"]]);
-  let handlers = {};
+  let handlers = {},
+    now = 10000,
+    timerId = 0;
+  const timers = new Map();
+  class Clock extends Date {
+    static now() {
+      return now;
+    }
+  }
+  const advance = (ms) => {
+    const end = now + ms;
+    while (true) {
+      const next = [...timers]
+        .filter(([, t]) => t.at <= end)
+        .sort((a, b) => a[1].at - b[1].at)[0];
+      if (!next) break;
+      timers.delete(next[0]);
+      now = next[1].at;
+      next[1].run();
+    }
+    now = end;
+  };
   const ctx = new Proxy(raw, {
     get: (t, k) =>
       k === "fillText"
@@ -90,8 +111,12 @@ export function render(state, buttons = [], opts = {}) {
   vm.runInNewContext(bundle, {
     wx,
     console,
-    setTimeout: () => 1,
-    clearTimeout() {},
+    Date: Clock,
+    setTimeout: (run, ms) => {
+      timers.set(++timerId, { run, at: now + ms });
+      return timerId;
+    },
+    clearTimeout: (id) => timers.delete(id),
   });
   const touch = (x, y) => {
     events.TouchStart({ touches: [{ clientX: x, clientY: y }] });
@@ -113,12 +138,54 @@ export function render(state, buttons = [], opts = {}) {
         token: "fixture",
       }),
     });
+    if (opts.from)
+      handlers.message({
+        data: JSON.stringify({ type: "snapshot", state: opts.from }),
+      });
     handlers.message({ data: JSON.stringify({ type: "snapshot", state }) });
   }
   for (const label of buttons) button(label);
+  if (opts.touch) touch(...opts.touch);
+  if (opts.elapsed) advance(opts.elapsed);
   if (opts.disconnect) handlers.error({ errMsg: "connection refused" });
-  return { canvas, drawn, touch, button };
+  return { canvas, drawn, touch, button, advance };
 }
+const publicMove = (seat, id) => ({
+  seat,
+  suitClass: "黑桃",
+  followMove: { cards: [deck[id], deck[id + 54]] },
+});
+const completeTrick = scene("play_trick", {
+  version: 3,
+  trickIndex: 7,
+  points: 105,
+  trick: {
+    ...scene().trick,
+    resolved: true,
+    winnerSeat: 1,
+    turnSeat: 1,
+    lastMoves: [
+      publicMove(0, 1),
+      publicMove(1, 4),
+      publicMove(2, 7),
+      publicMove(3, 10),
+    ],
+  },
+});
+const upgrade = scene("round_settle", {
+  version: 4,
+  callerDelta: 2,
+  defenderDelta: 0,
+  roundPointsFinal: 15,
+  bottomAward: 0,
+  roundResultLabel: "小光",
+});
+const freshDeal = scene("call_trump", {
+  version: 2,
+  points: 0,
+  usedTrumpIds: [],
+  callPassedSeats: [false, false, false, false],
+});
 const cases = [
   ["01-lobby", null],
   ["02-seats", scene("lobby")],
@@ -150,6 +217,33 @@ const cases = [
   ["15-record", scene(), ["菜单", "公开记牌"]],
   ["16-observer-settle", scene("round_settle", { mySeat: -1 })],
   ["17-messages", scene(), ["菜单", "消息记录"]],
+  ["18-preferences", null, ["声音与动效"]],
+  ["19-deal", freshDeal, [], { from: scene("lobby"), elapsed: 100 }],
+  [
+    "20-confirmed-move",
+    scene("play_trick", {
+      version: 2,
+      trick: {
+        ...scene().trick,
+        turnSeat: 1,
+        playedMoves: [publicMove(0, 0), null, null, null],
+      },
+    }),
+    [],
+    { from: scene(), elapsed: 70 },
+  ],
+  [
+    "21-my-turn",
+    scene("play_trick", { version: 2 }),
+    [],
+    {
+      from: scene("play_trick", { trick: { ...scene().trick, turnSeat: 1 } }),
+      elapsed: 200,
+    },
+  ],
+  ["22-trick-result", completeTrick, [], { from: scene(), elapsed: 200 }],
+  ["23-upgrade", upgrade, [], { from: scene(), elapsed: 150 }],
+  ["24-selected", scene(), [], { touch: [40, 408], elapsed: 50 }],
 ];
 const gallery = createCanvas(1920, Math.ceil(cases.length / 2) * 540),
   g = gallery.getContext("2d");
@@ -160,4 +254,23 @@ for (let i = 0; i < cases.length; i++) {
   g.drawImage(canvas, (i % 2) * 960, Math.floor(i / 2) * 540);
 }
 writeFileSync(new URL("gallery.png", output), gallery.toBuffer("image/png"));
+// Frames at different times prove that effects finish; static fixture snapshots do not.
+for (const [name, state, opts] of [
+  ["deal", freshDeal, { from: scene("lobby") }],
+  ["upgrade", upgrade, { from: scene() }],
+]) {
+  const strip = createCanvas(1920, 1080),
+    g = strip.getContext("2d");
+  [0, 100, 300, 900].forEach((elapsed, i) => {
+    g.drawImage(
+      render(state, [], { ...opts, elapsed }).canvas,
+      (i % 2) * 960,
+      Math.floor(i / 2) * 540,
+    );
+  });
+  writeFileSync(
+    new URL(`${name}-frames.png`, output),
+    strip.toBuffer("image/png"),
+  );
+}
 console.log(`Rendered ${cases.length} scenes: ${fileURLToPath(output)}`);

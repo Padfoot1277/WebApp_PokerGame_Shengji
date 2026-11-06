@@ -12,6 +12,40 @@ function boot(options = {}) {
     shares = [];
   const tasks = [];
   let tid = 0;
+  let clock = 1_700_000_000_000;
+  const timers = new Map(),
+    audioContexts = [],
+    audioOptions = [],
+    vibrations = [];
+  class FakeDate extends Date {
+    constructor(...args) {
+      super(...(args.length ? args : [clock]));
+    }
+    static now() {
+      return clock;
+    }
+  }
+  const schedule = (callback, delay = 0) => {
+    const id = ++tid;
+    timers.set(id, { callback, at: clock + Math.max(0, delay), delay });
+    return id;
+  };
+  const advance = (milliseconds) => {
+    const end = clock + milliseconds;
+    let steps = 0;
+    while (true) {
+      const entry = [...timers]
+        .filter(([, t]) => t.at <= end)
+        .sort((a, b) => a[1].at - b[1].at || a[0] - b[0])[0];
+      if (!entry) break;
+      assert(++steps < 5000, "timer loop did not settle");
+      const [id, timer] = entry;
+      timers.delete(id);
+      clock = timer.at;
+      timer.callback();
+    }
+    clock = end;
+  };
   let transform = { a: 1, d: 1, e: 0, f: 0 };
   const ctx = new Proxy(
     {
@@ -41,6 +75,33 @@ function boot(options = {}) {
     getMenuButtonBoundingClientRect: () => options.capsule,
     setStorageSync: (k, v) => storage.set(k, v),
     removeStorageSync: (k) => storage.delete(k),
+    setInnerAudioOption: (o) => audioOptions.push(o),
+    createInnerAudioContext: () => {
+      const context = {
+        src: "",
+        plays: [],
+        stops: 0,
+        destroys: 0,
+        play() {
+          this.plays.push({ src: this.src, at: clock });
+        },
+        stop() {
+          this.stops++;
+        },
+        destroy() {
+          this.destroys++;
+        },
+        onError(f) {
+          this.error = f;
+        },
+      };
+      audioContexts.push(context);
+      return context;
+    },
+    vibrateShort: (o) => {
+      vibrations.push({ options: o, at: clock });
+      o?.success?.({});
+    },
     connectSocket: (options) => {
       const listeners = {};
       const task = {
@@ -87,7 +148,13 @@ function boot(options = {}) {
     wx["on" + event] = (f) => (events[event] = f);
   vm.runInNewContext(
     readFileSync(new URL("../dist/game.js", import.meta.url), "utf8"),
-    { wx, console, setTimeout: () => ++tid, clearTimeout: () => {} },
+    {
+      wx,
+      console,
+      Date: FakeDate,
+      setTimeout: schedule,
+      clearTimeout: (id) => timers.delete(id),
+    },
   );
   return {
     events,
@@ -98,6 +165,11 @@ function boot(options = {}) {
     modals,
     clipboard,
     shares,
+    timers,
+    advance,
+    audioContexts,
+    audioOptions,
+    vibrations,
     button: (label) => {
       const t = rendered.find((t) => t.label === label);
       assert(t, `Missing button ${label}`);
@@ -350,6 +422,8 @@ test("spectators see public settlement but cannot start next round", () => {
   assert(s.rendered.some((t) => t.label === "125"));
   assert(s.rendered.some((t) => t.label.includes("抠底实得 20 分")));
   assert(!s.rendered.some((t) => t.label === "下一局"));
+  assert(s.rendered.some((t) => t.label === "等待牌友开启下一局，你正在观战"));
+  assert(!s.rendered.some((t) => t.label.includes("你的座位已保留")));
   assert.equal(t.sent.length, 0);
 });
 
@@ -391,4 +465,203 @@ test("history exits when the next lead clears lastMoves without changing trick i
   s.touch(40, 400);
   s.button("出牌");
   assert.equal(t.sent.length, 1);
+});
+
+const preferenceKey = "shengji-preferences-v1";
+function connected(options = {}, state = snapshot()) {
+  const s = boot(options);
+  s.button("加入房间");
+  const task = s.tasks[0];
+  task.opened();
+  task.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
+  task.message({ type: "snapshot", state });
+  return { s, task };
+}
+const allPlays = (s) => s.audioContexts.flatMap((c) => c.plays);
+const motionFrames = (s) =>
+  [...s.timers.values()].filter((t) => t.delay === 33);
+test("lobby and room settings are reachable; audio opt-in previews and persists", () => {
+  const s = boot();
+  s.button("声音与动效");
+  assert(s.rendered.some((t) => t.label === "声音与动效"));
+  assert.equal(s.audioContexts.length, 0);
+  s.touch(710, 180);
+  s.events.TouchEnd({});
+  assert.equal(s.storage.get(preferenceKey).sound, true);
+  assert.equal(s.audioContexts.length, 1);
+  assert.equal(
+    allPlays(s).filter((p) => p.src.endsWith("/turn.wav")).length,
+    1,
+  );
+  assert.equal(s.audioOptions[0].obeyMuteSwitch, true);
+  s.touch(710, 344);
+  s.events.TouchEnd({});
+  assert.equal(s.storage.get(preferenceKey).reducedMotion, true);
+  assert.equal(motionFrames(s).length, 0);
+  s.advance(1000);
+  s.button("试听音效");
+  assert.equal(
+    allPlays(s).filter((p) => p.src.endsWith("/turn.wav")).length,
+    2,
+  );
+  s.button("关闭");
+  s.button("加入房间");
+  const task = s.tasks[0];
+  task.opened();
+  task.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
+  task.message({ type: "snapshot", state: snapshot() });
+  s.button("菜单");
+  s.button("声音与动效");
+  assert(s.rendered.some((t) => t.label === "轻快音效"));
+});
+test("reduced motion schedules no animation; hide cancels motion and resume never catches up audio", () => {
+  const state = snapshot();
+  state.trick.turnSeat = 1;
+  const { s, task } = connected(
+    {
+      storage: [
+        [preferenceKey, { sound: true, vibration: true, reducedMotion: true }],
+      ],
+    },
+    state,
+  );
+  s.advance(1000);
+  s.touch(40, 400);
+  s.events.TouchEnd({});
+  assert.equal(motionFrames(s).length, 0);
+  const moved = {
+    ...state,
+    version: 2,
+    myHand: [
+      [
+        ...state.myHand[0],
+        { id: 2, suit: "♣️", rank: "K", suit_class: "梅花" },
+      ],
+    ],
+  };
+  task.message({ type: "snapshot", state: moved });
+  assert.equal(motionFrames(s).length, 0);
+  const audible = allPlays(s).length;
+  s.events.Hide({});
+  assert.equal(motionFrames(s).length, 0);
+  s.advance(1000);
+  s.events.Show({});
+  const resumed = s.tasks.at(-1);
+  resumed.opened();
+  resumed.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
+  resumed.message({
+    type: "snapshot",
+    state: { ...moved, version: 3, trick: { ...moved.trick, turnSeat: 0 } },
+  });
+  s.advance(500);
+  assert.equal(allPlays(s).length, audible);
+  assert.equal(s.vibrations.length, 0);
+  assert.equal(motionFrames(s).length, 0);
+  const active = connected();
+  active.s.touch(40, 400);
+  assert(motionFrames(active.s).length > 0);
+  active.s.events.Hide({});
+  assert.equal(motionFrames(active.s).length, 0);
+});
+test("authoritative new turn sounds and vibrates once; duplicate and reconnect snapshots stay quiet", () => {
+  const state = snapshot();
+  state.trick.turnSeat = 1;
+  state.trickIndex = 0;
+  const { s, task } = connected(
+    {
+      storage: [
+        [preferenceKey, { sound: true, vibration: true, reducedMotion: false }],
+      ],
+    },
+    state,
+  );
+  s.advance(2000);
+  const before = allPlays(s).length;
+  const mine = { ...state, version: 2, trick: { ...state.trick, turnSeat: 0 } };
+  task.message({ type: "snapshot", state: mine });
+  assert.equal(allPlays(s).length, before + 1);
+  assert(allPlays(s).at(-1).src.endsWith("/turn.wav"));
+  assert.equal(s.vibrations.length, 1);
+  s.advance(2000);
+  task.message({ type: "snapshot", state: mine });
+  assert.equal(allPlays(s).length, before + 1);
+  assert.equal(s.vibrations.length, 1);
+  s.events.Hide({});
+  s.events.Show({});
+  const resumed = s.tasks.at(-1);
+  resumed.opened();
+  resumed.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
+  resumed.message({ type: "snapshot", state: { ...mine, version: 3 } });
+  s.advance(1000);
+  assert.equal(allPlays(s).length, before + 1);
+  assert.equal(s.vibrations.length, 1);
+});
+test("snapshots behind a modal never play feedback or enable underlying buttons", () => {
+  const state = snapshot();
+  state.trick.turnSeat = 1;
+  const { s, task } = connected(
+    {
+      storage: [
+        [preferenceKey, { sound: true, vibration: true, reducedMotion: false }],
+      ],
+    },
+    state,
+  );
+  s.advance(1000);
+  s.button("规则");
+  s.advance(1000);
+  const before = allPlays(s).length;
+  const mine = { ...state, version: 2, trick: { ...state.trick, turnSeat: 0 } };
+  task.message({ type: "snapshot", state: mine });
+  assert.equal(allPlays(s).length, before);
+  assert.equal(s.vibrations.length, 0);
+  assert.equal(motionFrames(s).length, 0);
+  s.touch(200, 510);
+  s.events.TouchEnd({});
+  assert.equal(task.sent.length, 0);
+  s.button("关闭");
+  s.advance(1000);
+  const closedCount = allPlays(s).length;
+  task.message({ type: "snapshot", state: mine });
+  assert.equal(allPlays(s).length, closedCount);
+  assert.equal(s.vibrations.length, 0);
+});
+test("drag sounds are throttled and stable card hit boxes ignore intermediate animation", () => {
+  const state = snapshot();
+  state.myHand = [
+    Array.from({ length: 3 }, (_, i) => ({
+      id: i + 1,
+      suit: "♠️",
+      rank: ["A", "K", "Q"][i],
+      suit_class: "黑桃",
+    })),
+  ];
+  const { s, task } = connected(
+    {
+      storage: [
+        [
+          preferenceKey,
+          { sound: true, vibration: false, reducedMotion: false },
+        ],
+      ],
+    },
+    state,
+  );
+  s.advance(1000);
+  const start = allPlays(s).length;
+  s.touch(40, 400);
+  s.advance(33);
+  s.events.TouchMove({ touches: [{ clientX: 80, clientY: 400 }] });
+  s.advance(33);
+  s.events.TouchMove({ touches: [{ clientX: 122, clientY: 400 }] });
+  s.events.TouchMove({ touches: [{ clientX: 80, clientY: 400 }] });
+  s.events.TouchEnd({});
+  assert.equal(
+    allPlays(s).length,
+    start + 1,
+    "three quick cards produce only one selection cue",
+  );
+  assert(motionFrames(s).length > 0);
+  s.button("出牌");
+  assert.equal(JSON.stringify(task.sent.at(-1).payload.cardIds), "[1,2,3]");
 });

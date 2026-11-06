@@ -95,6 +95,9 @@ export function scene(phase = "play_trick", overrides = {}) {
   }
   if (phase === "lobby") {
     s.myHand = null;
+    s.roundIndex = 0;
+    s.points = 0;
+    s.teams = [{ levelRank: "2" }, { levelRank: "2" }];
     s.seats = s.seats.map((p, i) => ({
       ...p,
       handCount: 0,

@@ -4,12 +4,26 @@ import { helpPages } from "./help";
 import { selectionError, selectionSummary } from "./selection";
 import { viewport } from "./viewport";
 import { handLayout } from "./hand-layout";
+import {
+  preferenceKey,
+  readPreferences,
+  type Preferences,
+} from "./preferences";
+import { Motion, easeOut } from "./motion";
+import { GameAudio } from "./audio";
+import {
+  FeedbackTracker,
+  myUpgrade,
+  lastTrickSummary,
+  type Feedback,
+} from "./feedback";
 import type { Card, Move, ViewState } from "../../frontend/src/types/view";
 
 const canvas = wx.createCanvas();
 const ctx = canvas.getContext("2d") as unknown as CanvasRenderingContext2D;
 let width = 960,
   height = 540,
+  pixelRatio = 1,
   scale = 1,
   offsetX = 0,
   offsetY = 0;
@@ -22,6 +36,7 @@ let panel:
   | "messages"
   | "trick"
   | "record"
+  | "preferences"
   | null = null;
 let inspectedMove: Move | null = null;
 let messageTone: "info" | "error" = "info";
@@ -54,7 +69,56 @@ let previous = false,
   paint = true;
 const touched = new Set<number>();
 let pressed: string | null = null;
-let pressEpoch = 0;
+const preferences = readPreferences(wx.getStorageSync(preferenceKey));
+const audio = new GameAudio();
+audio.setEnabled(preferences.sound);
+const motion = new Motion(() => draw());
+motion.setEnabled(!preferences.reducedMotion);
+let visible = true;
+const feedback = new FeedbackTracker();
+let dealtIds: number[] = [];
+let lastVibration = -Infinity;
+function applyFeedback(events: Feedback[]) {
+  if (!visible || panel || link.status !== "已连接") return;
+  for (const event of events) {
+    if (event.kind === "hand") {
+      dealtIds = event.ids;
+      motion.start("deal", 440);
+    }
+    // A fourth move has already left playedMoves: give it the trick result cue.
+    if (event.kind === "move" && !view?.trick.resolved)
+      motion.start(`move:${event.seat}`, 220);
+    if (event.kind === "trick") motion.start("trick", 650);
+    if (event.kind === "celebrate") motion.start("celebrate", 700);
+    if (event.kind === "ready") motion.start(`ready:${event.seat}`, 300);
+    if (event.kind === "turn") {
+      motion.start("turn", 700);
+      if (preferences.vibration && Date.now() - lastVibration >= 1000) {
+        lastVibration = Date.now();
+        try {
+          wx.vibrateShort?.({ type: "light", fail: () => {} });
+        } catch {
+          /* Optional feedback. */
+        }
+      }
+    }
+  }
+  if (events.some((e) => e.kind === "celebrate")) audio.play("win");
+  else if (events.some((e) => e.kind === "turn")) audio.play("turn");
+  else if (events.some((e) => e.kind === "move")) audio.play("play");
+}
+function togglePreference(key: keyof Preferences) {
+  preferences[key] = !preferences[key];
+  try {
+    wx.setStorageSync(preferenceKey, preferences);
+  } catch {
+    /* Session preference still works. */
+  }
+  motion.setEnabled(!preferences.reducedMotion);
+  audio.setEnabled(preferences.sound);
+  if (key === "sound" && preferences.sound) audio.play("turn");
+  draw();
+}
 type Target = {
   x: number;
   y: number;
@@ -85,16 +149,28 @@ const link = new GameConnection(
       )
         previous = false;
       view = next;
+      applyFeedback(feedback.observe(next));
     } else if (msg.type === "ack") {
       if (!msg.ok) notify(msg.message, "error");
+      else if (messageTone === "error") notify("操作已确认");
     } else if (msg.type === "notice" || msg.type === "error")
       notify(msg.message, msg.type === "error" ? "error" : "info");
     else if (msg.type === "hello") {
+      feedback.reset();
+      motion.clear();
       nickname = msg.name;
       wx.setStorageSync("shengji-name", nickname);
     }
   },
-  () => draw(),
+  () => {
+    if (link.status !== "已连接") {
+      feedback.reset();
+      motion.clear();
+      audio.suspend();
+      if (visible) audio.resume();
+    }
+    draw();
+  },
 );
 function text(
   value: string,
@@ -138,6 +214,23 @@ function box(x: number, y: number, w: number, h: number, color: string) {
   ctx.closePath();
   ctx.fill();
 }
+function sparkle(x: number, y: number, color: string) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - 8);
+  for (const [dx, dy] of [
+    [3, -3],
+    [8, 0],
+    [3, 3],
+    [0, 8],
+    [-3, 3],
+    [-8, 0],
+    [-3, -3],
+  ])
+    ctx.lineTo(x + dx!, y + dy!);
+  ctx.closePath();
+  ctx.fillStyle = color;
+  ctx.fill();
+}
 function button(
   label: string,
   x: number,
@@ -157,7 +250,7 @@ function button(
           ? "#ffffff"
           : "#eee8ff";
   const pressKey = `${x}:${y}:${label}`;
-  const down = pressed === pressKey;
+  const down = pressed === pressKey && motion.active("press");
   if (enabled && tone !== "field")
     box(
       x,
@@ -196,6 +289,25 @@ function avatar(seat: number, x: number, y: number) {
     seat % 2 ? "#c73e61" : "#51409a",
     16,
   );
+  const ring =
+    seat === view?.mySeat && seat === turn(view) && motion.active("turn")
+      ? "turn"
+      : seat === view?.trick.winnerSeat && motion.active("trick")
+        ? "trick"
+        : motion.active(`ready:${seat}`)
+          ? `ready:${seat}`
+          : "";
+  if (ring) {
+    const p = motion.progress(ring);
+    ctx.save();
+    ctx.globalAlpha = (1 - p) * 0.85;
+    ctx.strokeStyle = ring === "turn" ? "#ef9956" : "#8d75d9";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y, 14 + 8 * p, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+  }
 }
 function heroCards() {
   for (const [x, angle, suit, color] of [
@@ -301,6 +413,9 @@ function selectPair() {
     draw();
     return;
   }
+  const ids = new Set(pair.map((c) => c.id));
+  for (const id of new Set([...selected, ...ids]))
+    if (selected.has(id) !== ids.has(id)) motion.start(`select:${id}`, 110);
   selected.clear();
   pair.forEach((c) => selected.add(c.id));
   draw();
@@ -473,6 +588,51 @@ function drawPanel() {
           ),
         ),
     );
+  } else if (panel === "preferences") {
+    text("声音与动效", 128, 111, 26, "#30314f");
+    const rows = [
+      ["sound", "轻快音效", "轻点、出牌、轮到你与升级；遵循系统静音"],
+      ["vibration", "回合轻震", "只在轮到你时提醒一次，不随选牌振动"],
+      ["reducedMotion", "减少动态效果", "关闭位移、光圈与彩纸，保留静态提示"],
+    ] as const;
+    rows.forEach(([key, title, detail], i) => {
+      const y = 154 + i * 82;
+      box(120, y - 8, 720, 72, i % 2 ? "#fff7e7" : "#f3efff");
+      text(title, 140, y + 11, 20, "#30314f", 490);
+      text(detail, 140, y + 42, 15, "#74708d", 490);
+      button(
+        key === "reducedMotion"
+          ? preferences[key]
+            ? "已减少"
+            : "标准动态"
+          : preferences[key]
+            ? "已开启"
+            : "已关闭",
+        692,
+        y + 6,
+        126,
+        () => togglePreference(key),
+        true,
+        preferences[key] ? "primary" : "quiet",
+      );
+    });
+    text(
+      "本机保存 · 开启音效会试听一次 · 初始静音",
+      140,
+      434,
+      15,
+      "#74708d",
+      490,
+    );
+    button(
+      "试听音效",
+      692,
+      414,
+      126,
+      () => audio.play("turn"),
+      preferences.sound,
+      "quiet",
+    );
   } else if (panel === "room") {
     text("好友房", 128, 111, 26, "#30314f");
     text(view?.roomId || room, 128, 180, 38, "#6652df", 650);
@@ -513,6 +673,18 @@ function drawPanel() {
         draw();
       },
       !!view && view.phase !== "lobby",
+      "quiet",
+    );
+    button(
+      "声音与动效",
+      488,
+      404,
+      180,
+      () => {
+        panel = "preferences";
+        draw();
+      },
+      true,
       "quiet",
     );
   } else {
@@ -579,9 +751,23 @@ function card(
   w = 36,
   h = 48,
   interactive = false,
+  arrival = 0,
 ) {
   const picked = interactive && selected.has(c.id);
-  const top = y - (picked ? 9 : 0);
+  const hitTop = y - (picked ? 9 : 0);
+  const selectionLift = interactive
+    ? (picked ? 9 : -9) * (1 - easeOut(motion.progress(`select:${c.id}`)))
+    : 0;
+  const dealIndex = interactive ? dealtIds.indexOf(c.id) : -1;
+  const dealProgress = Math.min(
+    1,
+    Math.max(0, (motion.progress("deal") * 440 - dealIndex * 4) / 260),
+  );
+  const top =
+    hitTop +
+    selectionLift +
+    arrival -
+    (dealIndex >= 0 ? 10 * (1 - easeOut(dealProgress)) : 0);
   box(x, top, w, h, picked ? "#fff09c" : "#ffffff");
   if (picked) {
     ctx.strokeStyle = "#6652df";
@@ -617,11 +803,12 @@ function card(
     if (!link.busy && !previous)
       targets.push({
         x,
-        y: top,
+        y: hitTop,
         w,
         h,
         card: c.id,
         action: () => {
+          motion.start(`select:${c.id}`, 110);
           if (selected.has(c.id)) selected.delete(c.id);
           else selected.add(c.id);
           draw();
@@ -632,6 +819,28 @@ function card(
 function drawSettlement(s: ViewState, busy: boolean) {
   targets = targets.filter((t) => t.y < 140 || t.y >= 488);
   box(24, 150, 912, 316, "#ffffff");
+  if (motion.active("celebrate")) {
+    const p = motion.progress("celebrate");
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(684, 150, 244, 62);
+    ctx.clip();
+    ctx.globalAlpha = 1 - p;
+    const colors = ["#f0aa49", "#a28ae8", "#e887a7", "#91bd67"];
+    for (let i = 0; i < 12; i++) {
+      const angle = (i * Math.PI) / 6;
+      ctx.fillStyle = colors[i % colors.length]!;
+      ctx.save();
+      ctx.translate(
+        806 + Math.cos(angle) * (60 + 52 * easeOut(p)),
+        180 + Math.sin(angle) * (16 + 26 * easeOut(p)),
+      );
+      ctx.rotate(angle + p);
+      ctx.fillRect(-3, -2, 6, 4);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
   const over = s.phase === "game_over";
   text(
     over
@@ -643,33 +852,27 @@ function drawSettlement(s: ViewState, busy: boolean) {
     "#30314f",
     500,
   );
-  const callerTeam =
-    (s.trump.callerSeat >= 0 ? s.trump.callerSeat : s.starterSeat) % 2;
-  const mine =
-    s.mySeat >= 0
-      ? s.mySeat % 2 === callerTeam
-        ? s.callerDelta
-        : s.defenderDelta
-      : 0;
+  const mine = myUpgrade(s);
   const won = over && s.mySeat >= 0 && s.mySeat % 2 === s.winnerTeam;
   box(706, 160, 204, 38, mine > 0 || won ? "#ffe08a" : "#eee8ff");
+  if (mine > 0 || won) sparkle(725, 180, "#8a64cf");
   text(
     over
       ? s.mySeat < 0
         ? "整场结束"
         : won
-          ? "✦ 我方获胜！"
+          ? "我方获胜！"
           : "下次再战！"
       : s.mySeat < 0
         ? "本局结束"
         : mine > 0
-          ? `✦ 我方升级 +${mine}`
+          ? `我方升级 +${mine}`
           : "下一局加油！",
-    722,
+    mine > 0 || won ? 742 : 722,
     180,
     17,
     "#51409a",
-    176,
+    mine > 0 || won ? 158 : 176,
   );
   text(String(s.roundPointsFinal), 48, 244, 52, "#6652df", 220);
   text("打家最终得分", 48, 288, 17, "#74708d");
@@ -718,23 +921,32 @@ function drawSettlement(s: ViewState, busy: boolean) {
     "quiet",
   );
   if (s.mySeat !== s.nextStarterSeat && !over)
-    text("等待下一局开启，你的座位已保留", 342, 512, 16, "#74708d", 570);
+    text(
+      s.mySeat < 0
+        ? "等待牌友开启下一局，你正在观战"
+        : "等待下一局开启，你的座位已保留",
+      342,
+      512,
+      16,
+      "#74708d",
+      570,
+    );
   if (over) button("返回大厅", 738, 490, 172, leaveRoom, !busy);
 }
 function draw() {
-  if (!ctx) return;
+  if (!ctx || !visible) return;
+  if (panel) motion.clear();
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = "#fff7e7";
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  const dpr = wx.getSystemInfoSync().pixelRatio || 1;
   ctx.setTransform(
-    dpr * scale,
+    pixelRatio * scale,
     0,
     0,
-    dpr * scale,
-    dpr * offsetX,
-    dpr * offsetY,
+    pixelRatio * scale,
+    pixelRatio * offsetX,
+    pixelRatio * offsetY,
   );
   targets = [];
   box(0, 0, 960, 540, "#fff7e7");
@@ -768,6 +980,19 @@ function draw() {
       104,
       () => {
         panel = "room";
+        draw();
+      },
+      true,
+      "quiet",
+    );
+  else
+    button(
+      "声音与动效",
+      672,
+      18,
+      134,
+      () => {
+        panel = "preferences";
         draw();
       },
       true,
@@ -835,9 +1060,11 @@ function draw() {
       16,
     );
     const trump =
-      s.phase === "call_trump"
-        ? "待定主"
-        : `${s.trump.hasTrumpSuit ? s.trump.suit : "硬主"} · 级牌 ${s.trump.levelRank}${s.trump.locked ? " · 已锁主" : ""}`;
+      s.phase === "lobby"
+        ? "四人准备后发牌"
+        : s.phase === "call_trump"
+          ? "待定主"
+          : `${s.trump.hasTrumpSuit ? s.trump.suit : "硬主"} · 级牌 ${s.trump.levelRank}${s.trump.locked ? " · 已锁主" : ""}`;
     text(trump, 660, 88, 15, "#6652df", 270);
     box(24, 106, 912, 32, "#e5edbd");
     const partnerVote =
@@ -928,9 +1155,14 @@ function draw() {
       } else {
         const move = (previous ? s.trick.lastMoves : s.trick.playedMoves)[seat];
         if (move) {
+          const arrival = previous
+            ? 0
+            : 10 * (1 - easeOut(motion.progress(`move:${seat}`)));
           move.followMove.cards
             .slice(0, 7)
-            .forEach((c, j) => card(c, x! + 8 + j * 31, y! + 28, 30, 44));
+            .forEach((c, j) =>
+              card(c, x! + 8 + j * 31, y! + 28, 30, 44, false, arrival),
+            );
           text(
             move.info || `${move.followMove.cards.length} 张 · 点此展开`,
             x! + 8,
@@ -956,9 +1188,13 @@ function draw() {
               (s.phase === "trump_fight" && s.fightPassedSeats[seat])
               ? "已跳过"
               : s.phase === "play_trick"
-                ? seat === turn(s)
-                  ? "轮到此席出牌"
-                  : "尚未出牌"
+                ? s.trick.resolved && s.trick.lastMoves.every(Boolean)
+                  ? seat === s.trick.winnerSeat
+                    ? `上墩赢墩 · ${lastTrickSummary(s)}`
+                    : "上墩已结算 · 等待下一墩"
+                  : seat === turn(s)
+                    ? "轮到此席出牌"
+                    : "尚未出牌"
                 : `${seatRole(s, seat)} · ${seat === turn(s) ? (s.phase === "bottom" ? "请选 8 张扣底" : "选择亮主或跳过") : "等待操作"}`,
             x! + 8,
             y! + 42,
@@ -976,6 +1212,30 @@ function draw() {
         22,
         "#30314f",
       );
+      s.seats.forEach((seat, i) => {
+        const x = 342 + i * 38;
+        box(x, 381, 28, 26, seat.uid && seat.ready ? "#d9edaf" : "#eee8ff");
+        if (seat.uid && seat.ready) {
+          ctx.save();
+          ctx.strokeStyle = "#557334";
+          ctx.lineWidth = 2.5;
+          ctx.lineCap = "round";
+          ctx.beginPath();
+          ctx.moveTo(x + 7, 394);
+          ctx.lineTo(x + 12, 399);
+          ctx.lineTo(x + 21, 388);
+          ctx.stroke();
+          ctx.restore();
+        } else
+          text(
+            ["东", "南", "西", "北"][i]!,
+            x + 6,
+            394,
+            16,
+            seat.uid ? "#51409a" : "#9a92aa",
+            22,
+          );
+      });
       text(
         `已准备 ${s.seats.filter((p) => p.uid && p.ready).length} / 4 人 · 对家是队友`,
         44,
@@ -1099,7 +1359,17 @@ function draw() {
         );
       if (count > 0)
         button("选对子", 28, 492, 144, selectPair, !busy && !previous, "quiet");
-      if (busy) text("正在确认操作，请稍候", 700, 363, 14, "#74708d", 224);
+      if (busy)
+        text(
+          link.status !== "已连接"
+            ? "连接恢复后可继续操作"
+            : "正在确认操作，请稍候",
+          700,
+          363,
+          14,
+          "#74708d",
+          224,
+        );
       if (["bottom", "trump_fight", "play_trick"].includes(s.phase))
         button(
           s.surrenderVotes[s.mySeat] ? "撤回弃局" : "申请弃局",
@@ -1167,6 +1437,7 @@ function resize() {
   width = info.windowWidth;
   height = info.windowHeight;
   const dpr = info.pixelRatio || 1;
+  pixelRatio = dpr;
   canvas.width = width * dpr;
   canvas.height = height * dpr;
   let capsule: WechatMinigame.ClientRect | undefined;
@@ -1190,11 +1461,14 @@ function point(t: WechatMinigame.Touch) {
   return { x: (t.clientX - offsetX) / scale, y: (t.clientY - offsetY) / scale };
 }
 wx.onTouchStart((e) => {
+  if (!visible) return;
   const t = e.touches[0];
   if (!t) return;
+  audio.unlock();
   const p = point(t);
   const target = hit(p.x, p.y);
   if (!target) return;
+  audio.play(target.card !== undefined ? "select" : "tap");
   if (target.card !== undefined) {
     dragging = true;
     paint = !selected.has(target.card);
@@ -1204,14 +1478,8 @@ wx.onTouchStart((e) => {
   target.action();
   if (target.label) {
     pressed = target.label;
-    const epoch = ++pressEpoch;
+    if (!panel) motion.start("press", 140);
     draw();
-    setTimeout(() => {
-      if (epoch === pressEpoch) {
-        pressed = null;
-        draw();
-      }
-    }, 140);
   }
 });
 wx.onTouchMove((e) => {
@@ -1224,6 +1492,8 @@ wx.onTouchMove((e) => {
     touched.add(target.card);
     if (paint) selected.add(target.card);
     else selected.delete(target.card);
+    motion.start(`select:${target.card}`, 110);
+    audio.play("select");
     draw();
   }
 });
@@ -1234,14 +1504,24 @@ wx.onTouchCancel(() => {
   dragging = false;
 });
 wx.onShow((options) => {
+  feedback.reset();
+  visible = true;
+  motion.resume();
+  audio.resume();
   if (options.query?.room && !view) {
     room = options.query.room;
     draw();
   }
   link.resume();
+  draw();
 });
 wx.onHide(() => {
   dragging = false;
+  visible = false;
+  motion.suspend();
+  audio.suspend();
+  pressed = null;
+  feedback.reset();
 });
 wx.onWindowResize(resize);
 wx.showShareMenu({ menus: ["shareAppMessage"] });
