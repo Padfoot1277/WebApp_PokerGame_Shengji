@@ -14,6 +14,7 @@ export const useGameStore = defineStore("game", {
     uid: null as string | null, // 来自 hello
     view: null as ViewState | null, // ViewState（下一步再强类型）
     pending: false,
+    reviewPrevious: false,
 
     messages: [] as MessageItem[],
     _msgId: 0,
@@ -24,6 +25,7 @@ export const useGameStore = defineStore("game", {
     connect(wsUrl: string) {
       sessionStorage.setItem("shengji-url", wsUrl);
       this.view = null;
+      this.reviewPrevious = false;
       this.pending = false;
       this.messages = [];
       wsService.connect(wsUrl, this.handleServerMessage, (s) => {
@@ -45,6 +47,14 @@ export const useGameStore = defineStore("game", {
 
         case "snapshot":
           // authoritative：整包替换
+          if (
+            this.view?.roomId !== msg.state.roomId ||
+            this.view?.roundIndex !== msg.state.roundIndex ||
+            this.view?.phase !== msg.state.phase ||
+            this.view?.trickIndex !== msg.state.trickIndex ||
+            !msg.state.trick.lastMoves.some(Boolean)
+          )
+            this.reviewPrevious = false;
           this.view = msg.state;
           break;
 
@@ -63,6 +73,20 @@ export const useGameStore = defineStore("game", {
     },
 
     sendEvent<T>(type: string, payload: T) {
+      if (
+        this.reviewPrevious &&
+        [
+          "game.play_cards",
+          "game.put_bottom",
+          "game.call_trump",
+          "game.change_trump",
+          "game.attack_trump",
+          "game.call_pass",
+        ].includes(type)
+      ) {
+        this.pushMessage("error", "正在查看上一墩，请先回到当前牌桌再操作");
+        return;
+      }
       if (!wsService.send(type, payload)) {
         this.pushMessage(
           "error",
@@ -87,6 +111,7 @@ export const useGameStore = defineStore("game", {
     },
 
     disconnect() {
+      this.reviewPrevious = false;
       sessionStorage.removeItem("shengji-url");
       // 需要 wsService.close()
       // 关闭当前连接

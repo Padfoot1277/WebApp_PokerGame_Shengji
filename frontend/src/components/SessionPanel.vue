@@ -86,6 +86,20 @@ function surrender() {
   game.sendEvent(voted.value ? "game.cancel_surrender" : "game.surrender", {});
   confirm.value = false;
 }
+function leaveRoom() {
+  const s = v.value;
+  if (
+    s &&
+    s.mySeat >= 0 &&
+    !["lobby", "round_settle", "game_over"].includes(s.phase) &&
+    !window.confirm(
+      "返回大厅会断开当前连接，座位仍保留。重新加入原房间可以继续。确定返回吗？",
+    )
+  )
+    return;
+  game.disconnect();
+  game.view = null;
+}
 async function invite() {
   if (!v.value) return;
   const url = new URL(location.href);
@@ -110,13 +124,7 @@ async function invite() {
     }}</span
     ><template v-if="v"
       ><span>房间 {{ v.roomId }}</span
-      ><button
-        @click="
-          game.disconnect();
-          game.view = null;
-        "
-      >
-        返回大厅</button
+      ><button @click="leaveRoom">返回大厅</button
       ><button @click="invite">
         {{ copied ? "邀请链接已复制" : "邀请朋友" }}
       </button></template

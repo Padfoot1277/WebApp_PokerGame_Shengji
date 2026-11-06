@@ -45,7 +45,7 @@ function logout() {
 }
 </script>
 <template>
-  <section class="panel connect">
+  <section v-if="!game.view" class="panel connect">
     <h2>升级 <small>四人 · 固定对家 · 双副牌</small></h2>
     <label
       >昵称<input v-model="uid" maxlength="24" placeholder="给自己取个名字"

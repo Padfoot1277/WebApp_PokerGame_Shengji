@@ -167,3 +167,37 @@ func TestFourPlayersFullRoundAndReconnect(t *testing.T) {
 		t.Fatal("stale bottom award")
 	}
 }
+
+func TestMalformedMessagesCannotBypassRateLimit(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	hub := ws.NewHub()
+	go hub.Run()
+	manager := room.NewManager()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { ws.ServeWS(hub, manager, w, r) }))
+	defer server.Close()
+	c, _, err := websocket.DefaultDialer.Dial("ws"+strings.TrimPrefix(server.URL, "http")+"?room=bad-json", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	// Ensure the initial handshake completed before starting the burst.
+	for i := 0; i < 2; i++ {
+		if _, _, err = c.ReadMessage(); err != nil {
+			t.Fatal(err)
+		}
+	}
+	for i := 0; i < 31; i++ {
+		if err = c.WriteMessage(websocket.TextMessage, []byte("{")); err != nil {
+			break
+		}
+	}
+	_ = c.SetReadDeadline(time.Now().Add(2 * time.Second))
+	for {
+		if _, _, err = c.ReadMessage(); err != nil {
+			if e, ok := err.(interface{ Timeout() bool }); ok && e.Timeout() {
+				t.Fatal("malformed messages bypassed the rate limit")
+			}
+			break
+		}
+	}
+}

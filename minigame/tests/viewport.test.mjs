@@ -29,7 +29,12 @@ test("entire table remains inside safe bounds at common landscape sizes", () => 
     const v = viewport(w, h, safe, capsule);
     assert(v.scale > 0);
     assert(v.x >= safe.left);
-    assert(v.y >= 42);
+    assert(v.y >= safe.top);
+    assert(
+      v.x + 960 * v.scale <= capsule.left ||
+        v.y >= capsule.bottom ||
+        v.y + 62 * v.scale <= capsule.top,
+    );
     assert(v.x + 960 * v.scale <= safe.right + 1e-8);
     assert(v.y + 540 * v.scale <= safe.bottom + 1e-8);
   }

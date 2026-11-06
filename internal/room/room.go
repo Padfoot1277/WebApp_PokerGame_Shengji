@@ -104,39 +104,7 @@ func (r *Room) Run() {
 				return
 			}
 		case c := <-r.join:
-			r.lastActive = time.Now()
-			if r.loadErr != nil {
-				slog.Error("room recovery failed", "room", r.id, "error", r.loadErr)
-				_ = c.Close()
-				continue
-			}
-
-			for old := range r.conns {
-				if old.UID() == c.UID() && old != c {
-					delete(r.conns, old)
-					_ = old.Close()
-				}
-			}
-			if len(r.conns) >= 32 {
-				_ = c.Close()
-				continue
-			}
-			r.conns[c] = struct{}{}
-			// 若该 uid 已经坐下，标 online
-			for i := 0; i < 4; i++ {
-				if r.state.Seats[i].UID == c.UID() {
-					r.state.Seats[i].Online = true
-					r.state.Seats[i].Name = clientName(c)
-				}
-			}
-			c.SendJSON(map[string]any{
-				"type":  "hello",
-				"uid":   c.UID(),
-				"token": clientToken(c),
-				"name":  clientName(c),
-			})
-			r.state.Version++
-			r.broadcastSnapshot()
+			r.acceptConnection(c)
 
 		case c := <-r.leave:
 			if _, ok := r.conns[c]; !ok {
@@ -195,4 +163,48 @@ func (r *Room) broadcastSnapshot() {
 		snap := game.Snapshot{Type: "snapshot", State: view}
 		_ = c.SendJSON(snap)
 	}
+}
+
+// acceptConnection runs only on the room loop.
+func (r *Room) acceptConnection(c transport.Client) {
+	r.lastActive = time.Now()
+	if closed, ok := c.(interface{ Done() <-chan struct{} }); ok {
+		select {
+		case <-closed.Done():
+			return
+		default:
+		}
+	}
+	if r.loadErr != nil {
+		slog.Error("room recovery failed", "room", r.id, "error", r.loadErr)
+		_ = c.Close()
+		return
+	}
+
+	for old := range r.conns {
+		if old.UID() == c.UID() && old != c {
+			delete(r.conns, old)
+			_ = old.Close()
+		}
+	}
+	if len(r.conns) >= 32 {
+		_ = c.Close()
+		return
+	}
+	r.conns[c] = struct{}{}
+	// 若该 uid 已经坐下，标 online
+	for i := 0; i < 4; i++ {
+		if r.state.Seats[i].UID == c.UID() {
+			r.state.Seats[i].Online = true
+			r.state.Seats[i].Name = clientName(c)
+		}
+	}
+	c.SendJSON(map[string]any{
+		"type":  "hello",
+		"uid":   c.UID(),
+		"token": clientToken(c),
+		"name":  clientName(c),
+	})
+	r.state.Version++
+	r.broadcastSnapshot()
 }

@@ -7,7 +7,10 @@ const game = useGameStore();
 const v = computed(() => game.view);
 const enabled = computed(
   () =>
-    game.wsStatus === "open" && !game.pending && (v.value?.mySeat ?? -1) >= 0,
+    game.wsStatus === "open" &&
+    !game.pending &&
+    !game.reviewPrevious &&
+    (v.value?.mySeat ?? -1) >= 0,
 );
 const canCall = computed(() => {
   const s = v.value;
@@ -76,7 +79,15 @@ function send(type: string) {
     return;
   }
   if (type === "game.attack_trump") {
-    if (jokers.length !== 2 || levels.length) {
+    if (cards.some((c) => s.usedTrumpIds.includes(c.id))) {
+      game.pushMessage("error", "选牌中有已用于亮主的牌");
+      return;
+    }
+    if (
+      jokers.length !== 2 ||
+      levels.length ||
+      jokers[0]?.suit !== jokers[1]?.suit
+    ) {
       game.pushMessage("error", "请选择两张同类王");
       return;
     }
@@ -92,6 +103,22 @@ function send(type: string) {
   }
   if (cards.some((c) => s.usedTrumpIds.includes(c.id))) {
     game.pushMessage("error", "选牌中有已用于亮主的牌");
+    return;
+  }
+  const rank =
+    type === "game.call_trump"
+      ? s.teams[s.mySeat % 2]?.levelRank
+      : s.trump.levelRank;
+  if (levels.some((c) => c.rank !== rank)) {
+    game.pushMessage("error", `请选择 ${rank} 级牌`);
+    return;
+  }
+  if (levels.some((c) => c.suit !== levels[0]?.suit)) {
+    game.pushMessage("error", "两张级牌须为同一花色");
+    return;
+  }
+  if ((jokers[0]?.suit === "BJ") !== /[♥♦]/.test(levels[0]?.suit ?? "")) {
+    game.pushMessage("error", "大王配红色级牌，小王配黑色级牌");
     return;
   }
   game.sendEvent(type, {
@@ -167,6 +194,7 @@ function send(type: string) {
         >等待其他牌友操作</small
       >
       <small v-if="game.pending">正在确认操作…</small>
+      <small v-if="game.reviewPrevious">回放中，请先回到当前牌桌</small>
     </div>
     <p v-if="needed" class="selection-help">{{ selectionHelp }}</p>
     <p v-if="feedback" class="feedback" :class="feedback.level" role="status">

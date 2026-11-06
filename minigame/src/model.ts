@@ -5,6 +5,19 @@ export const relative = (seat: number, mine: number) =>
   mine < 0
     ? seatName(seat)
     : ["我", "下家", "对家", "上家"][(seat - mine + 4) % 4];
+export function seatRole(s: ViewState, seat: number): string {
+  const own =
+    s.mySeat >= 0
+      ? seat % 2 === s.mySeat % 2
+        ? "我方"
+        : "对方"
+      : seat % 2 === 0
+        ? "东西队"
+        : "南北队";
+  if (["lobby", "dealing", "call_trump"].includes(s.phase)) return own;
+  const caller = s.trump.callerSeat >= 0 ? s.trump.callerSeat : s.starterSeat;
+  return `${own} · ${seat % 2 === caller % 2 ? "坐家" : "打家"}`;
+}
 export function turn(s: ViewState) {
   switch (s.phase) {
     case "call_trump":

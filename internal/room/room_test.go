@@ -57,3 +57,29 @@ func TestMalformedPayload(t *testing.T) {
 		}
 	}
 }
+
+type lifecycleClient struct {
+	fakeClient
+	done chan struct{}
+}
+
+func (c *lifecycleClient) Done() <-chan struct{} { return c.done }
+
+func TestReplacedConnectionCannotRejoinAfterReplacement(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	r := NewRoom("test")
+	current := &lifecycleClient{fakeClient: fakeClient{uid: "same"}, done: make(chan struct{})}
+	r.acceptConnection(current)
+	r.process(incoming{c: current, typ: "room.sit", raw: json.RawMessage(`{"seat":0}`), reqID: "sit"})
+	old := &lifecycleClient{fakeClient: fakeClient{uid: "same"}, done: make(chan struct{})}
+	close(old.done)
+	version := r.state.Version
+	// The old HTTP handler can resume its join after the new connection joined.
+	r.acceptConnection(old)
+	if current.closed || len(r.conns) != 1 || r.state.Version != version {
+		t.Fatal("late closed connection displaced current player")
+	}
+	if _, ok := r.conns[current]; !ok || !r.state.Seats[0].Online {
+		t.Fatal("current player lost its online seat")
+	}
+}

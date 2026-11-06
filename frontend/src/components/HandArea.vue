@@ -14,12 +14,14 @@ const seen = new Set<number>();
 let lastCardId: number | null = null;
 const hand = computed(() => game.view?.myHand ?? []);
 function select(id: number) {
+  if (game.reviewPrevious || game.pending) return;
   const ids = new Set(props.selectedIds);
   if (selectOnDrag.value) ids.add(id);
   else ids.delete(id);
   emit("update:selectedIds", [...ids]);
 }
 function down(e: PointerEvent) {
+  if (game.reviewPrevious || game.pending) return;
   if (!e.isPrimary || e.button !== 0) return;
   const button = (e.target as HTMLElement).closest<HTMLElement>(
     "[data-card-id]",
@@ -47,6 +49,7 @@ function move(e: PointerEvent) {
   }
 }
 function pair(id: number) {
+  if (game.reviewPrevious || game.pending) return;
   const cards = hand.value.flat();
   const card = cards.find((c) => c.id === id);
   if (!card) return;
@@ -69,11 +72,18 @@ watch(
 );
 </script>
 <template>
-  <section class="panel hand-area">
+  <section
+    class="panel hand-area"
+    :class="{ 'read-only': game.reviewPrevious || game.pending }"
+    :aria-disabled="game.reviewPrevious || game.pending"
+  >
     <h3>
       我的手牌
       <small>{{ hand.flat().length }} 张 · 滑动选牌，双击选同牌对子</small>
     </h3>
+    <p v-if="game.reviewPrevious" class="read-only-hint">
+      回放中，回到当前牌桌后可继续选牌。
+    </p>
     <div v-for="(group, index) in hand" :key="index" class="suit-group">
       <small>{{ group[0]?.suit_class }}</small>
       <div
@@ -141,5 +151,13 @@ h3 small {
 }
 .hand-area small {
   color: #65796f;
+}
+.read-only .cards-row {
+  opacity: 0.65;
+}
+.read-only-hint {
+  color: #315568;
+  font-size: 13px;
+  margin: 8px 0;
 }
 </style>

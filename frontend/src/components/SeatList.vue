@@ -6,10 +6,26 @@ const game = useGameStore();
 const seats = computed(() => game.view?.seats ?? []);
 const mySeat = computed(() => game.view?.mySeat ?? -1);
 const enabled = computed(() => game.wsStatus === "open" && !game.pending);
+const occupied = computed(() => seats.value.filter((s) => s.uid).length);
+const ready = computed(
+  () => seats.value.filter((s) => s.uid && s.online && s.ready).length,
+);
 </script>
 <template>
   <section class="panel">
     <h3>选择座位 <small>东与西、南与北互为队友</small></h3>
+    <p v-if="seats.length" class="readiness" role="status">
+      已入座 {{ occupied }} / 4 · 已准备 {{ ready }} / 4。
+      {{
+        mySeat < 0
+          ? occupied === 4
+            ? "座位已满，你正在观战。"
+            : "点击空位入座，选择与朋友搭档的位置。"
+          : seats[mySeat]?.ready
+            ? "你已准备，等待其余牌友。"
+            : "入座后点击准备，四人准备即开局。"
+      }}
+    </p>
     <div class="seat-grid">
       <div
         v-for="(seat, index) in seats"
@@ -81,5 +97,13 @@ const enabled = computed(() => game.wsStatus === "open" && !game.pending);
 small {
   font-weight: normal;
   color: #65796f;
+}
+.readiness {
+  margin: 10px 0 14px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: #e7f0f2;
+  color: #315568;
+  font-size: 14px;
 }
 </style>

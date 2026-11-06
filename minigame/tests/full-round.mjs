@@ -13,6 +13,18 @@ const bundle = readFileSync(
   "utf8",
 );
 const clients = [];
+const usePairs = process.env.SHENGJI_TEST_PAIRS === "1";
+const pairIn = (cards) =>
+  cards.find((c) =>
+    cards.some((d) => c.id !== d.id && c.suit === d.suit && c.rank === d.rank),
+  );
+const pointsOf = (cards) =>
+  cards.reduce(
+    (sum, c) =>
+      sum + (c.rank === "5" ? 5 : ["10", "K"].includes(c.rank) ? 10 : 0),
+    0,
+  );
+let observer;
 const wait = async (condition, label) => {
   const until = Date.now() + 10000;
   while (!condition()) {
@@ -38,6 +50,7 @@ function boot(index) {
     acks: [],
     sent: [],
     errors: [],
+    snapshots: new Map(),
   };
   const ctx = new Proxy(
     {
@@ -74,7 +87,11 @@ function boot(index) {
         onMessage: (f) =>
           socket.addEventListener("message", (e) => {
             const msg = JSON.parse(e.data);
-            if (msg.type === "snapshot") client.view = msg.state;
+            if (msg.type === "snapshot") {
+              client.snapshots.set(socket, msg.state);
+              // Late snapshots from a replaced connection cannot satisfy recovery.
+              if (socket === sockets.at(-1)) client.view = msg.state;
+            }
             if (msg.type === "ack") client.acks.push(msg);
             if (msg.type === "error") client.errors.push(msg);
             f({ data: e.data });
@@ -139,11 +156,16 @@ async function action(c, label) {
 }
 function select(c, ids) {
   const hand = c.view.myHand.flat();
-  const step = Math.min(42, 850 / Math.max(1, hand.length));
+  const rows = hand.length > 25 ? 2 : 1;
+  const columns = rows === 2 ? Math.ceil(hand.length / 2) : hand.length;
+  const step = Math.min(rows === 2 ? 52 : 42, 850 / Math.max(1, columns));
   for (const id of ids) {
     const i = hand.findIndex((card) => card.id === id);
     assert(i >= 0);
-    c.touch(33 + i * step, 405);
+    c.touch(
+      33 + (i % columns) * step,
+      rows === 2 ? 398 + Math.floor(i / columns) * 44 : 405,
+    );
   }
 }
 try {
@@ -192,14 +214,24 @@ try {
       await action(c, "定主");
       assert.equal(c.view.phase, "bottom");
       assert.equal(c.view.myHand.flat().length, 33);
-      select(
-        c,
-        c.view.myHand
-          .flat()
-          .slice(0, 8)
-          .map((c) => c.id),
-      );
+      const buryingHand = c.view.myHand.flat();
+      const secondRowStart = Math.ceil(buryingHand.length / 2);
+      // Exercise both rows, rather than accidentally testing only the first row.
+      const buriedIds = [
+        ...buryingHand.slice(0, 4),
+        ...buryingHand.slice(secondRowStart, secondRowStart + 4),
+      ].map((card) => card.id);
+      select(c, buriedIds);
       await action(c, "扣底 8 张");
+      assert.deepEqual(
+        [...c.sent.at(-1).payload.discardIds].sort((a, b) => a - b),
+        [...buriedIds].sort((a, b) => a - b),
+      );
+      assert.equal(c.view.myHand.flat().length, 25);
+      assert(
+        !c.view.myHand.flat().some((card) => buriedIds.includes(card.id)),
+        "second-row cards must actually leave the hand",
+      );
       while (clients[0].view.phase === "trump_fight")
         await action(clients[clients[0].view.fightTurnSeat], "跳过");
       assert.equal(clients[0].view.trick.turnSeat, c.view.mySeat);
@@ -212,6 +244,37 @@ try {
     () => clients.every((c) => c.view.phase === "play_trick"),
     "start play",
   );
+  observer = new WebSocket(
+    `${endpoint}?room=${encodeURIComponent(room)}&name=observer`,
+  );
+  let observerView;
+  observer.addEventListener("message", (e) => {
+    const m = JSON.parse(e.data);
+    if (m.type === "snapshot") observerView = m.state;
+  });
+  await wait(() => observerView, "observer snapshot");
+  assert.equal(observerView.mySeat, -1);
+  assert.equal(observerView.myHand, null);
+  assert.equal(observerView.myBottom, null);
+  assert(
+    observerView.seats.every((s) => !Object.hasOwn(s, "hand")),
+    "seat metadata must not contain private hands",
+  );
+  const wrong = clients[(clients[0].view.trick.turnSeat + 1) % 4];
+  const beforeVersion = clients[0].view.version;
+  wrong.sockets.at(-1).send(
+    JSON.stringify({
+      type: "game.play_cards",
+      payload: { cardIds: [wrong.view.myHand.flat()[0].id] },
+      reqId: "qa-wrong-turn",
+    }),
+  );
+  await wait(
+    () => wrong.acks.some((a) => a.reqId === "qa-wrong-turn"),
+    "wrong-turn rejection",
+  );
+  assert.equal(wrong.acks.find((a) => a.reqId === "qa-wrong-turn").ok, false);
+  assert.equal(clients[0].view.version, beforeVersion);
   const originalSeat = clients[2].view.mySeat;
   clients[2].events.Hide({});
   clients[2].events.Show({});
@@ -219,10 +282,13 @@ try {
     () =>
       clients[2].sockets.length === 2 &&
       clients[2].sockets[1].readyState === 1 &&
+      clients[2].snapshots.has(clients[2].sockets[1]) &&
       clients[2].view.mySeat === originalSeat,
     "resume",
   );
-  let plays = 0;
+  let plays = 0,
+    pairLeads = 0;
+  const playedCards = new Map();
   while (clients[0].view.phase === "play_trick") {
     const v = clients[0].view;
     const c = clients[v.trick.turnSeat];
@@ -230,18 +296,80 @@ try {
     const own = c.view;
     const lead = own.trick.playedMoves[own.trick.leaderSeat];
     const hand = own.myHand.flat();
-    const card =
-      hand.find((card) => !lead || card.suit_class === lead.suitClass) ??
-      hand[0];
-    select(c, [card.id]);
+    let chosen;
+    if (!lead) {
+      const seed = usePairs ? pairIn(hand) : null;
+      chosen = seed
+        ? hand.filter((c) => c.suit === seed.suit && c.rank === seed.rank)
+        : [hand[0]];
+      if (chosen.length === 2) pairLeads++;
+    } else {
+      const count = lead.followMove.cards.length;
+      const same = hand.filter((c) => c.suit_class === lead.suitClass);
+      const seed = count === 2 && same.length >= 2 ? pairIn(same) : null;
+      chosen = seed
+        ? same.filter((c) => c.suit === seed.suit && c.rank === seed.rank)
+        : same.slice(0, count);
+      if (chosen.length < count)
+        chosen.push(
+          ...hand
+            .filter((c) => !chosen.some((d) => c.id === d.id))
+            .slice(0, count - chosen.length),
+        );
+    }
+    for (const card of chosen) {
+      assert(!playedCards.has(card.id), "physical card played twice");
+      playedCards.set(card.id, card);
+    }
+    select(
+      c,
+      chosen.map((c) => c.id),
+    );
     await action(c, "出牌");
     if (++plays > 100) throw Error("Round failed to end");
   }
   const end = clients[0].view;
-  assert.equal(plays, 100);
+  assert.equal(playedCards.size, 100);
+  if (!usePairs) assert.equal(plays, 100);
+  else assert(pairLeads > 0, "pairs mode must exercise a pair lead");
   assert.equal(end.phase, "round_settle");
   assert.equal(end.bottomRevealed, true);
   assert.equal(end.bottomReveal.length, 8);
+  assert.equal(
+    new Set([...playedCards.keys(), ...end.bottomReveal.map((c) => c.id)]).size,
+    108,
+  );
+  assert.equal(pointsOf([...playedCards.values(), ...end.bottomReveal]), 200);
+  const record = end.record;
+  assert.equal(
+    record.spade.num +
+      record.heart.num +
+      record.club.num +
+      record.diamond.num +
+      record.bigJoker +
+      record.smallJoker,
+    100,
+  );
+  for (const [key, suit] of [
+    ["spade", "♠"],
+    ["heart", "♥"],
+    ["club", "♣"],
+    ["diamond", "♦"],
+  ]) {
+    const cards = [...playedCards.values()].filter((c) =>
+      c.suit.includes(suit),
+    );
+    assert.equal(record[key].num, cards.length);
+    for (const [field, rank] of [
+      ["a", "A"],
+      ["k", "K"],
+      ["ten", "10"],
+    ])
+      assert.equal(
+        record[key][field],
+        cards.filter((c) => c.rank === rank).length,
+      );
+  }
   assert(clients.every((c) => (c.view.myHand ?? []).flat().length === 0));
   assert(
     clients.every((c) => c.view.roundPointsFinal === end.roundPointsFinal),
@@ -251,6 +379,7 @@ try {
       room,
       called,
       plays,
+      pairLeads,
       tricks: end.trickIndex,
       points: end.roundPointsFinal,
       result: end.roundResultLabel,
@@ -300,5 +429,6 @@ try {
     "PASS: four bundled clients, touch commands, full round, resume, settlement, next round, empty selection, teammate surrender",
   );
 } finally {
+  observer?.close();
   clients.forEach((c) => c.cleanup());
 }

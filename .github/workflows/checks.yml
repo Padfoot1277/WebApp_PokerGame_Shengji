@@ -7,12 +7,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
-          go-version: '1.24.x'
+          go-version: "1.24.x"
       - run: go test -race ./...
       - run: go vet ./...
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: "22"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm --prefix frontend ci
@@ -24,3 +24,19 @@ jobs:
       - run: npm --prefix minigame run check
       - run: npm --prefix minigame run build
       - run: npm --prefix minigame test
+      - name: Four bundled clients against a real backend
+        shell: bash
+        run: |
+          export ADDR=:18080
+          export DATA_DIR="$(mktemp -d)"
+          export TEST_IP="$(hostname -I | cut -d' ' -f1)"
+          go run ./cmd/server > /tmp/shengji-integration.log 2>&1 &
+          backend_pid=$!
+          trap 'kill "$backend_pid" || true' EXIT
+          for attempt in $(seq 1 30); do
+            curl --noproxy '*' --fail --silent "http://$TEST_IP:18080/healthz" && break
+            sleep 1
+          done
+          curl --noproxy '*' --fail --silent "http://$TEST_IP:18080/healthz"
+          export SHENGJI_TEST_URL="ws://$TEST_IP:18080/ws"
+          npm --prefix minigame run test:integration

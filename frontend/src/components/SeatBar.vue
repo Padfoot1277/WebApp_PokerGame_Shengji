@@ -1,16 +1,18 @@
 <script setup lang="ts">
-import { ref, computed, watch } from "vue";
+import { computed } from "vue";
 import { useGameStore } from "../store/game";
 import { relativeSeat, seatName, teamName } from "../utils/seat";
 import TrickPlayView from "./TrickPlayView.vue";
 const game = useGameStore();
-const previous = ref(false);
-const v = computed(() => game.view);
-watch(
-  () => game.view?.roundIndex,
-  () => {
-    previous.value = false;
+const previous = computed({
+  get: () => game.reviewPrevious,
+  set: (value) => {
+    game.reviewPrevious = value;
   },
+});
+const v = computed(() => game.view);
+const canReview = computed(
+  () => v.value?.trick.lastMoves.some(Boolean) ?? false,
 );
 const positions = [2, 3, 1, 0];
 const order = computed(() =>
@@ -36,7 +38,10 @@ const turn = computed(() => {
 });
 const moves = computed(() => {
   const t = v.value?.trick;
-  return previous.value || t?.resolved ? t?.lastMoves : t?.playedMoves;
+  return previous.value ||
+    ["round_settle", "game_over"].includes(v.value?.phase ?? "")
+    ? t?.lastMoves
+    : t?.playedMoves;
 });
 </script>
 <template>
@@ -47,12 +52,20 @@ const moves = computed(() => {
           ? "上一墩 · 历史出牌"
           : ["round_settle", "game_over"].includes(v.phase)
             ? "末墩出牌 · 本局已结束"
-            : v.trick.resolved
-              ? "上一墩结果 · 等待下一墩先手"
-              : "本墩牌桌"
+            : "本墩牌桌"
       }}</strong
-      ><label><input v-model="previous" type="checkbox" /> 查看上一墩</label>
+      ><label
+        ><input
+          v-model="previous"
+          type="checkbox"
+          :disabled="!canReview && !previous"
+        />
+        查看上一墩</label
+      >
     </div>
+    <p v-if="previous" class="history-note" role="status">
+      正在回放上一墩，选牌和出牌已暂停。取消“查看上一墩”即可继续。
+    </p>
     <div class="table">
       <article
         v-for="(index, position) in order"
@@ -163,6 +176,14 @@ header {
 }
 .table-heading label {
   font-size: 12px;
+}
+.history-note {
+  padding: 10px;
+  margin-bottom: 10px;
+  background: #e5eff3;
+  border-radius: 8px;
+  color: #315568;
+  font-size: 13px;
 }
 @media (max-width: 480px) {
   .position-0,

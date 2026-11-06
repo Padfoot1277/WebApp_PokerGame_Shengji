@@ -69,6 +69,9 @@ func (c *Conn) Token() string  { return c.token }
 func (c *Conn) UID() string    { return c.uid }
 func (c *Conn) RoomID() string { return c.roomID }
 
+// Done lets the room reject a connection replaced before its join was processed.
+func (c *Conn) Done() <-chan struct{} { return c.done }
+
 func (c *Conn) SendJSON(v any) error {
 	b, err := json.Marshal(v)
 	if err != nil {
@@ -169,6 +172,16 @@ func (c *Conn) readLoop(router Router) {
 		if err != nil {
 			return
 		}
+		// Count malformed envelopes too; JSON decoding must not bypass the budget.
+		if time.Since(windowStart) > time.Second {
+			windowStart = time.Now()
+			requests = 0
+		}
+		requests++
+		if requests > 30 {
+			_ = c.Close()
+			return
+		}
 
 		var env Envelope
 		if err := json.Unmarshal(data, &env); err != nil {
@@ -180,12 +193,7 @@ func (c *Conn) readLoop(router Router) {
 			continue
 		}
 
-		if time.Since(windowStart) > time.Second {
-			windowStart = time.Now()
-			requests = 0
-		}
-		requests++
-		if requests > 30 || len(env.ReqID) > 80 {
+		if len(env.ReqID) > 80 {
 			_ = c.Close()
 			return
 		}

@@ -190,7 +190,7 @@ test("rules modal blocks table touches; invitation copies only room code", () =>
   const task = s.tasks[0];
   task.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
   task.message({ type: "snapshot", state: snapshot() });
-  s.button("房间");
+  s.button("菜单");
   s.button("复制房间码");
   assert.deepEqual(s.clipboard, ["test"]);
   s.button("邀请好友");
@@ -293,4 +293,102 @@ test("late open from a replaced task is closed; manual recovery retains request 
   s.button("出牌");
   assert.equal(next.sent.length, 1);
   next.message({ type: "ack", reqId: id, ok: true });
+});
+
+test("long moves expand without accidental submission and error messages remain readable", () => {
+  const s = boot();
+  s.button("加入房间");
+  const t = s.tasks[0];
+  t.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
+  const state = snapshot();
+  state.trick.playedMoves[2] = {
+    seat: 2,
+    suitClass: "黑桃",
+    info: "甩牌被阻止，强制出最小结构",
+    followMove: {
+      cards: Array.from({ length: 20 }, (_, i) => ({
+        id: i,
+        suit: "♠️",
+        rank: "A",
+        suit_class: "黑桃",
+      })),
+    },
+  };
+  t.message({ type: "snapshot", state });
+  s.touch(400, 170);
+  assert(s.rendered.some((t) => t.label === "西席 · 出牌详情"));
+  assert(s.rendered.some((t) => t.label === "20 张 · 黑桃"));
+  assert.equal(t.sent.length, 0);
+  s.button("关闭");
+  t.message({ type: "error", message: "这不是你的回合" });
+  s.touch(50, 479);
+  assert(s.rendered.some((t) => t.label === "牌桌消息"));
+  assert(s.rendered.some((t) => t.label === "这不是你的回合"));
+});
+
+test("spectators see public settlement but cannot start next round", () => {
+  const s = boot();
+  s.button("加入房间");
+  const t = s.tasks[0];
+  t.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
+  const state = {
+    ...snapshot(),
+    phase: "round_settle",
+    mySeat: -1,
+    myHand: null,
+    roundPointsFinal: 125,
+    roundResultLabel: "过大关",
+    callerDelta: 0,
+    defenderDelta: 1,
+    nextStarterSeat: 0,
+    bottomPoints: 10,
+    bottomMul: 2,
+    bottomAward: 20,
+    bottomReveal: [{ id: 5, suit: "♥️", rank: "5" }],
+  };
+  t.message({ type: "snapshot", state });
+  assert(s.rendered.some((t) => t.label === "125"));
+  assert(s.rendered.some((t) => t.label.includes("抠底实得 20 分")));
+  assert(!s.rendered.some((t) => t.label === "下一局"));
+  assert.equal(t.sent.length, 0);
+});
+
+test("record panel respects the server hideRecord flag", () => {
+  const s = boot();
+  s.button("加入房间");
+  const t = s.tasks[0];
+  t.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
+  const state = {
+    ...snapshot(),
+    hideRecord: true,
+    record: { bigJoker: 2, smallJoker: 1 },
+  };
+  t.message({ type: "snapshot", state });
+  s.button("菜单");
+  s.button("公开记牌");
+  assert(s.rendered.some((t) => t.label === "本局未开放记牌信息"));
+  assert(!s.rendered.some((t) => t.label.includes("大王已出")));
+});
+
+test("history exits when the next lead clears lastMoves without changing trick index", () => {
+  const s = boot();
+  s.button("加入房间");
+  const t = s.tasks[0];
+  t.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
+  const state = snapshot();
+  state.trickIndex = 3;
+  state.trick.lastMoves[0] = {
+    seat: 0,
+    suitClass: "黑桃",
+    followMove: { cards: [state.myHand[0][0]] },
+  };
+  t.message({ type: "snapshot", state });
+  s.button("看上一墩");
+  state.version++;
+  state.trick.lastMoves = [null, null, null, null];
+  t.message({ type: "snapshot", state });
+  assert(!s.rendered.some((t) => t.label.includes("上一墩回放")));
+  s.touch(40, 400);
+  s.button("出牌");
+  assert.equal(t.sent.length, 1);
 });
