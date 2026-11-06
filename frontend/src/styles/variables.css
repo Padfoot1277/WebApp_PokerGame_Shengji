@@ -1,14 +1,75 @@
 :root {
-    --bg-main: #ffffff;
-    --bg-panel: #c7edcc;
-    --bg-card: #333;
-
-    --text-main: #000;
-    --text-muted: #111111;
-
-    --color-error: #ff4d4f;
-    --color-notice: #0987ee;
-
-    --panel-gap: 12px;
-    --radius: 8px;
+  --bg-main: #f4f6f2;
+  --bg-panel: #ffffff;
+  --bg-card: #fff;
+  --text-main: #20382d;
+  --text-muted: #65796f;
+  --text-secondary: #65796f;
+  --border-muted: #d7e2d9;
+  --color-error: #b14539;
+  --color-notice: #26765c;
+  --panel-gap: 16px;
+  --radius: 14px;
+  font-family: system-ui, "Microsoft YaHei", sans-serif;
+  line-height: 1.5;
+}
+.panel {
+  background: var(--bg-panel);
+  padding: 16px;
+  border: 1px solid #dce5dc;
+  border-radius: var(--radius);
+}
+button {
+  background: #23785f !important;
+  color: white;
+  border: 0;
+  min-height: 42px;
+  border-radius: 8px;
+  padding: 9px 16px;
+  font: inherit;
+  cursor: pointer;
+}
+button.secondary {
+  background: #e9f0e9 !important;
+  color: #235e4b;
+}
+button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+button:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #cb9e2e;
+  outline-offset: 3px;
+}
+button:hover:not(:disabled) {
+  filter: brightness(1.07);
+}
+input {
+  accent-color: #23785f;
+}
+h2,
+h3,
+h4 {
+  margin-bottom: 10px;
+}
+p + p {
+  margin-top: 8px;
+}
+button.card,
+button.played-card {
+  background: #fff !important;
+  color: #172e23;
+  border: 1px solid #c3cec6;
+}
+button.card.selected {
+  background: #e3d5fc !important;
+  color: #38215c;
+  border: 2px solid #8b6ab0;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

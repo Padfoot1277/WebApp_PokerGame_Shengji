@@ -1,131 +1,108 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import { useGameStore } from '../store/game'
-
-const game = useGameStore()
-
-const wsBase = ref('ws://192.168.1.105:8080/ws')  // 请替换为当前服务器的IP地址，我这里是192.168.1.109，监听的是8080端口
-const roomId = ref('room1')
-
-// 允许为空：为空则后端生成 anon-xxx
-const uid = ref(localStorage.getItem('uid') ?? '')
-
-function connect() {
-  const room = encodeURIComponent(roomId.value.trim() || 'default')
-  const u = uid.value.trim()
-
-  // 只要用户填了，就传 uid；为空就不传，走后端默认
-  const url =
-      u.length > 0
-          ? `${wsBase.value}?room=${room}&uid=${encodeURIComponent(u)}`
-          : `${wsBase.value}?room=${room}`
-
-  localStorage.setItem('uid', u) // 记住上次输入（可为空）
-  game.connect(url)
-}
-</script>
-
-<template>
-
-  <h3>房间信息</h3>
-  <div class="panel">
-    <div class="row">
-      <label>用户昵称</label>
-      <input v-model="uid" placeholder="（可空，将根据时间赋值）" />
-    </div>
-
-    <div class="row">
-      <label>房间ID</label>
-      <input v-model="roomId" />
-    </div>
-
-    <div class="row">
-      <label>WS地址</label>
-      <input v-model="wsBase" />
-    </div>
-
-    <button @click="connect">
-      连接
-    </button>
-
-  </div>
-</template>
-
-<style scoped>
-.panel {
-  background: var(--bg-panel);
-  padding: 16px 18px;
-  border-radius: var(--radius);
-}
-
-/* 标题层级更清晰 */
-.panel h3 {
-  margin: 0 0 14px 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-/* 每一行对齐更规整 */
-.row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-bottom: 12px;
-}
-
-/* label 对齐与层级 */
-label {
-  width: 100px;
-  flex-shrink: 0;
-  color: var(--text-muted);
-  font-size: 16px;
-  text-align: left;
-  letter-spacing: 0.5px;
-}
-
-/* 输入框统一尺寸 */
-input {
-  flex: 1;
-  height: 38px;
-  padding: 0 10px;
-  border-radius: 6px;
-  font-size: 14px;
-  line-height: 38px;
-  box-sizing: border-box;
-  border-color: #ffffff;
-}
-
-/* 连接按钮 */
-.panel button {
-  margin-top: 6px;
-  height: 38px;
-  padding: 0 18px;
-  font-size: 16px;
-  font-weight: 500;
-  border-radius: 6px;
-  background: #4da3ff;
-  color: #fff;
-}
-
-/* hover 保留你原来的逻辑 */
-@media (hover: hover) and (pointer: fine) {
-  .panel button:hover {
-    filter: brightness(1.1);
+import { ref } from "vue";
+import { useGameStore } from "../store/game";
+const game = useGameStore();
+const uid = ref(
+  sessionStorage.getItem("shengji-nickname") ??
+    localStorage.getItem("nickname") ??
+    "",
+);
+const roomId = ref(
+  new URLSearchParams(location.search).get("room") ??
+    localStorage.getItem("room") ??
+    "",
+);
+const wsBase = ref(
+  import.meta.env.VITE_WS_URL ||
+    `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`,
+);
+function join(create = false) {
+  if (create)
+    roomId.value = Array.from(crypto.getRandomValues(new Uint8Array(4)), (n) =>
+      (n % 36).toString(36),
+    )
+      .join("")
+      .toUpperCase();
+  if (!roomId.value.trim()) {
+    game.pushMessage("error", "请输入房间码，或创建新房间");
+    return;
+  }
+  try {
+    const url = new URL(wsBase.value);
+    if (!["ws:", "wss:"].includes(url.protocol)) throw Error();
+    url.searchParams.set("room", roomId.value.trim());
+    url.searchParams.set("name", uid.value.trim());
+    localStorage.setItem("nickname", uid.value.trim());
+    localStorage.setItem("room", roomId.value.trim());
+    game.connect(url.toString());
+  } catch {
+    game.pushMessage("error", "服务器地址格式有误");
   }
 }
-
-/* 去掉你原本的 !important 覆盖式 hover */
-button:hover {
-  background: rgba(77, 163, 255, 0.7);
+function logout() {
+  game.disconnect();
+  sessionStorage.removeItem("shengji-token");
 }
-
-/* 底部提示信息 */
-.hint {
-  margin-top: 12px;
-  padding-top: 8px;
-  font-size: 12px;
-  color: var(--text-muted);
-  border-top: 1px solid rgba(2, 2, 2, 0.6);
+</script>
+<template>
+  <section class="panel connect">
+    <h2>升级 <small>四人 · 固定对家 · 双副牌</small></h2>
+    <label
+      >昵称<input v-model="uid" maxlength="24" placeholder="给自己取个名字"
+    /></label>
+    <label
+      >房间码<input
+        v-model="roomId"
+        maxlength="32"
+        placeholder="输入朋友分享的房间码"
+        @keyup.enter="join()"
+    /></label>
+    <div class="actions">
+      <button @click="join()">加入房间</button
+      ><button class="secondary" @click="join(true)">创建房间</button>
+    </div>
+    <details>
+      <summary>连接设置</summary>
+      <label>服务器地址<input v-model="wsBase" /></label>
+      <p>昵称仅用于显示，当前浏览器标签页会自动保存身份。</p>
+      <button @click="logout">退出身份</button>
+    </details>
+  </section>
+</template>
+<style scoped>
+.connect {
+  width: 100%;
+  max-width: 640px;
+  margin: auto;
 }
-
+label {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin: 16px 0;
+}
+input {
+  flex: 1;
+  min-width: 0;
+  padding: 12px;
+  border: 1px solid #cad9cf;
+  border-radius: 8px;
+  font: inherit;
+}
+.actions {
+  display: flex;
+  gap: 12px;
+}
+small {
+  font-size: 13px;
+  color: #65796f;
+  font-weight: normal;
+}
+details {
+  margin-top: 20px;
+  color: #65796f;
+}
+summary {
+  cursor: pointer;
+}
 </style>

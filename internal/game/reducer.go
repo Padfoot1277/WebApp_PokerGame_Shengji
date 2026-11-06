@@ -12,6 +12,16 @@ type ReduceResult struct {
 }
 
 func Reduce(st GameState, uid string, typ ClientEventType, payload any) (ReduceResult, *AppError) {
+	if uid == "" {
+		return ReduceResult{State: st}, ErrStateNotSeated
+	}
+	if err := validateCommand(st.Phase, typ, payload); err != nil {
+		return ReduceResult{State: st}, err
+	}
+	st = cloneState(st)
+	if typ == EvSurrender || typ == EvCancelSurrender {
+		return reduceSurrender(st, uid, typ)
+	}
 	switch st.Phase {
 	case PhaseLobby:
 		return reduceLobby(st, uid, typ, payload)
@@ -36,28 +46,28 @@ func reduceLobby(st GameState, uid string, typ ClientEventType, payload any) (Re
 		p := payload.(SitPayload)
 		seat := &st.Seats[p.Seat]
 		if seat.UID != "" && seat.UID != uid {
-			return ReduceResult{State: st}, ErrStateSeatTaken.WithInfof("该座位已有玩家%s", seat.UID)
+			return ReduceResult{State: st}, ErrStateSeatTaken.WithInfof("该座位已有玩家%s", seat.Name)
 		}
 		// 如果 uid 已经坐在别处，先清掉旧座位
 		for i := 0; i < 4; i++ {
 			if st.Seats[i].UID == uid && i != p.Seat {
-				st.Seats[i] = SeatState{}
-				st.Seats[i].Team = p.Seat % 2
+				st.Seats[i] = SeatState{Team: TeamOfSeat(i)}
+				st.Seats[i].Team = TeamOfSeat(i)
 			}
 		}
 		seat.UID = uid
 		seat.Online = true
 		seat.Ready = false
 		st.Version++
-		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("玩家%s已坐入%d号位", uid, p.Seat)}, nil
+		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("玩家已坐入%s", SeatName(p.Seat))}, nil
 
 	case EvLeave:
 		// uid 离开自己座位
 		for i := 0; i < 4; i++ {
 			if st.Seats[i].UID == uid {
-				st.Seats[i] = SeatState{}
+				st.Seats[i] = SeatState{Team: TeamOfSeat(i)}
 				st.Version++
-				return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("玩家%s已离开%d号位", uid, i)}, nil
+				return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("玩家已离开%s", SeatName(i))}, nil
 			}
 		}
 		return ReduceResult{State: st}, ErrStateNotSeated.WithInfof("当前还未就坐")
@@ -95,6 +105,15 @@ func reduceLobby(st GameState, uid string, typ ClientEventType, payload any) (Re
 }
 
 func startDeal(st *GameState) {
+	st.UsedTrumpIDs = make(map[int]bool)
+	st.SurrenderMask = 0
+	st.Surrendered = false
+	st.WinnerTeam = -1
+	st.BottomRevealed = false
+	st.BottomReveal = nil
+	st.BottomPoints, st.BottomMul, st.BottomAward = 0, 0, 0
+	st.FightPassMask, st.FightPassCount = 0, 0
+	st.FightTurnSeat = -1
 	// 进入dealing
 	st.Phase = PhaseDealing
 
@@ -164,11 +183,11 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 	}
 	if st.CallMode == CallModeOrdered {
 		if seat != st.CallTurnSeat {
-			return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请等待%v号位定主", st.CallTurnSeat)
+			return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请等待%s定主", SeatName(st.CallTurnSeat))
 		}
 	}
 	if st.CallMode == CallModeRace && st.CallerSeat >= 0 {
-		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("手慢啦，%v号位已定主", st.CallerSeat)
+		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("手慢啦，%s已定主", SeatName(st.CallerSeat))
 	}
 
 	switch typ {
@@ -215,9 +234,12 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 			return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 		}
 
-		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("%d号位不定主", seat)}, nil
+		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("%s不定主", SeatName(seat))}, nil
 
 	case EvCallTrump:
+		if st.CallPassMask&(1<<uint(seat)) != 0 {
+			return ReduceResult{State: st}, ErrDuplicateOps.WithInfo("已跳过，不可反悔")
+		}
 		p := payload.(CallTrumpPayload)
 		handIdx := NewCardIndex(st.Seats[seat].Hand)
 		joker, ok := handIdx.Get(p.JokerID)
@@ -238,6 +260,9 @@ func reduceCallTrump(st GameState, uid string, typ ClientEventType, payload any)
 		trumpSuit, locked, err := rules.ValidateCallTrump(teamLevel, joker, levelCards)
 		if err != nil {
 			return ReduceResult{State: st}, ErrRuleIllegalTrump.WithInfo(err.Error())
+		}
+		if e := useTrumpCards(&st, append([]int{p.JokerID}, p.LevelIDs...)); e != nil {
+			return ReduceResult{State: st}, e
 		}
 		// 定主成功：写入 Trump
 		st.Trump.HasTrumpSuit = true
@@ -314,15 +339,15 @@ func reduceBottom(st GameState, uid string, typ ClientEventType, payload any) (R
 				BiggerSeat: -1,
 			}
 			st.Version++
-			notice := fmt.Sprintf("玩家%d完成扣牌", seat)
+			notice := fmt.Sprintf("玩家%s完成扣牌", SeatName(seat))
 			if !inCallerGroup(&st, seat) {
 				notice = notice + "，本回合打家不可挖底"
 			}
-			notice = fmt.Sprintf("%s。进入出牌阶段，由%d号位先手", notice, st.CallerSeat)
+			notice = fmt.Sprintf("%s。进入出牌阶段，由%s先手", notice, SeatName(st.CallerSeat))
 			return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 		}
 		st = enterTrumpFight(st)
-		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("玩家%d完成扣牌", seat)}, nil
+		return ReduceResult{State: st, Changed: true, Notice: fmt.Sprintf("玩家%s完成扣牌", SeatName(seat))}, nil
 
 	default:
 		return ReduceResult{State: st}, ErrUnknownEvent.WithInfof("非法事件 %s", typ)
@@ -332,6 +357,7 @@ func reduceBottom(st GameState, uid string, typ ClientEventType, payload any) (R
 func enterTrumpFight(st GameState) GameState {
 	st.FightPassMask = 0
 	st.FightPassCount = 0
+	st.FightTurnSeat = (st.BottomOwnerSeat + 1) % 4
 	st.Phase = PhaseTrumpFight
 	st.Version++
 	return st
@@ -343,6 +369,12 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		return ReduceResult{State: st}, err
 	}
 
+	if seat != st.FightTurnSeat {
+		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfo("请等待轮到自己攻改")
+	}
+	if st.FightPassMask&(1<<uint(seat)) != 0 {
+		return ReduceResult{State: st}, ErrDuplicateOps.WithInfo("已跳过，不可反悔")
+	}
 	// 定主者不参与改主/攻主
 	if seat == st.BottomOwnerSeat {
 		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfo("请等待其余玩家攻改")
@@ -358,8 +390,9 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		}
 		st.FightPassMask |= bit
 		st.FightPassCount++
+		st.FightTurnSeat = (seat + 1) % 4
 		st.Version++
-		notice := fmt.Sprintf("玩家%d已选择跳过", seat)
+		notice := fmt.Sprintf("玩家%s已选择跳过", SeatName(seat))
 		// 其余三位都跳过，则正式进入出牌阶段
 		if st.FightPassCount >= 3 {
 			st.Phase = PhasePlayTrick
@@ -369,7 +402,7 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 				BiggerSeat: -1,
 			}
 			st.Version++
-			notice = fmt.Sprintf("%s。无人继续改/攻主，进入出牌阶段，由%d号位先手", notice, st.CallerSeat)
+			notice = fmt.Sprintf("%s。无人继续改/攻主，进入出牌阶段，由%s先手", notice, SeatName(st.CallerSeat))
 			return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 		}
 		return ReduceResult{State: st, Changed: true, Notice: notice}, nil
@@ -397,6 +430,9 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		if err != nil {
 			return ReduceResult{State: st}, ErrRuleIllegalTrump.WithInfo(err.Error())
 		}
+		if e := useTrumpCards(&st, append([]int{p.JokerID}, p.LevelIDs...)); e != nil {
+			return ReduceResult{State: st}, e
+		}
 		// 改主成功：只改主花色，不改 LevelRank / CallerSeat
 		st.Trump.HasTrumpSuit = true
 		st.Trump.Suit = trumpSuit
@@ -404,7 +440,7 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		sortAllHands(&st)
 		// 改主者成为 bottomOwner，拿当前底牌并扣底
 		enterBottomPhase(&st, seat)
-		notice := fmt.Sprintf("%d号位改主成功，变为花色%s", seat, st.Trump.Suit)
+		notice := fmt.Sprintf("%s改主成功，变为花色%s", SeatName(seat), st.Trump.Suit)
 		return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 
 	case EvAttackTrump:
@@ -423,6 +459,9 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		if err != nil {
 			return ReduceResult{State: st}, ErrRuleIllegalTrump.WithInfo(err.Error())
 		}
+		if e := useTrumpCards(&st, p.JokerIDs); e != nil {
+			return ReduceResult{State: st}, e
+		}
 		// 攻主成功：进入硬主（只影响主花色体系），不改 LevelRank/CallerSeat。此后不可以再改主
 		st.Trump.HasTrumpSuit = false
 		st.Trump.Suit = rules.SuitAttack
@@ -431,7 +470,7 @@ func reduceTrumpFight(st GameState, uid string, typ ClientEventType, payload any
 		sortAllHands(&st)
 		// 攻主者成为 bottomOwner，拿底扣底，随后将直接进入游戏
 		enterBottomPhase(&st, seat)
-		notice := fmt.Sprintf("玩家%d攻主成功，本小局硬主", seat)
+		notice := fmt.Sprintf("玩家%s攻主成功，本小局硬主", SeatName(seat))
 		return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 
 	default:
@@ -452,7 +491,7 @@ func reducePlayTrick(st GameState, uid string, typ ClientEventType, payload any)
 		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfo("本小局已结束，等待结算")
 	}
 	if seat != st.Trick.TurnSeat {
-		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请先等待玩家%v出牌", st.Trick.TurnSeat)
+		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请先等待玩家%s出牌", SeatName(st.Trick.TurnSeat))
 	}
 	if st.Trick.Plays[seat] != nil {
 		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfo("已出过牌，请等待本回合结束")
@@ -484,7 +523,7 @@ func reducePlayTrick(st GameState, uid string, typ ClientEventType, payload any)
 		st.Seats[seat].HandCount = len(st.Seats[seat].Hand)
 		// 更新 trick
 		st.Trick.Plays[seat] = &currentMove
-		notice := fmt.Sprintf("玩家%d已出牌", seat)
+		notice := fmt.Sprintf("玩家%s已出牌", SeatName(seat))
 		if currentMove.Info != "" {
 			notice += fmt.Sprintf("【%s】", currentMove.Info)
 		}
@@ -560,41 +599,34 @@ func leadPlayTrick(st *GameState, seat int, selected []rules.Card) (PlayedMove, 
 // canonicalizeLead 对先手选牌进行甩牌判定
 // 返回：是否甩牌成功、最终出牌、失败原因，错误
 func canonicalizeLead(st *GameState, leaderSeat int, sc rules.SuitClass, intentMove Move) (bool, Move, string, *AppError) {
-	// 对每一种牌型（每个组），取甩牌中该组最小的，与对手最大比
-	groups := intentMove.Blocks
-	for off := 1; off <= 3; off++ {
-		def := (leaderSeat + off) % 4
-		for _, g := range groups {
-			if len(g) == 0 {
-				continue
+	// 检查所有可被任一玩家压制的子结构，统一选择牌力最低的一组。
+	var weakest *rules.Block
+	for _, group := range intentMove.Blocks {
+		for _, block := range group {
+			beaten := false
+			for seat := 0; seat < 4; seat++ {
+				if seat == leaderSeat {
+					continue
+				}
+				candidates, err := rules.FindBlocksInHand(st.Seats[seat].Hand, st.Trump.Trump, sc, block.Type, block.TractorLen)
+				if err != nil {
+					return false, Move{}, "", ErrSystem.WithInfo(err.Error())
+				}
+				if len(candidates) > 0 && candidates[0].RankValue > block.RankValue {
+					beaten = true
+					break
+				}
 			}
-			throwMin := g[len(g)-1]
-			defHand := st.Seats[def].Hand
-			defBlocks, err := rules.FindBlocksInHand(defHand, st.Trump.Trump, sc, throwMin.Type, throwMin.TractorLen)
-			if err != nil {
-				return false, Move{}, "", ErrSystem.WithInfo(err.Error())
-			}
-			if len(defBlocks) == 0 {
-				continue
-			}
-			defMax := defBlocks[0]
-			// 同type、同suitClass，比较大小
-			res, err := rules.CompareTwoBlocks(throwMin, defMax)
-			if err != nil {
-				return false, Move{}, "", ErrSystem.WithInfo(err.Error())
-			}
-			if res < 0 {
-				// 甩牌失败：最终出牌结果=该组最小的 throwMin
-				return false, Move{
-					Blocks:  [][]rules.Block{{throwMin}},
-					Cards:   throwMin.Cards,
-					CardIDs: getIDs(throwMin.Cards),
-				}, fmt.Sprintf("⚠️甩牌失败，原计划甩出%v张%v⚠️", len(intentMove.CardIDs), sc), nil
+			if beaten && (weakest == nil || weakerBlock(block, *weakest)) {
+				b := block
+				weakest = &b
 			}
 		}
 	}
-	// 无人可压，甩牌成功
-	return true, intentMove, "甩牌成功", nil
+	if weakest == nil {
+		return true, intentMove, "甩牌成功", nil
+	}
+	return false, Move{Blocks: [][]rules.Block{{*weakest}}, Cards: weakest.Cards, CardIDs: getIDs(weakest.Cards)}, "甩牌被阻止，改出可被压制的最低牌力组合", nil
 }
 
 // followTrick 后手跟牌处理
@@ -607,7 +639,7 @@ func followTrick(st *GameState, seat int, selected []rules.Card) (PlayedMove, *A
 	}
 	leadPlayed := st.Trick.Plays[leadSeat]
 	if leadPlayed == nil {
-		return PlayedMove{}, ErrStateNotYourTurn.WithInfof("请等待%d号位先手出牌", leadSeat)
+		return PlayedMove{}, ErrStateNotYourTurn.WithInfof("请等待%s先手出牌", SeatName(leadSeat))
 	}
 	leadSC := leadPlayed.SuitClass
 	leadBlocks := leadPlayed.Move.Blocks
@@ -643,18 +675,14 @@ func followTrick(st *GameState, seat int, selected []rules.Card) (PlayedMove, *A
 		if bigMove == nil {
 			return PlayedMove{}, ErrSystem.WithInfo("跟牌比较出错，无法找到当前最大出牌方")
 		}
-		win, err := rules.CompareForTrickWin(bigMove.Blocks, selected, st.Trump.Trump)
+		winningBlocks, win, err := rules.WinningBlocks(bigMove.Blocks, selected, st.Trump.Trump)
 		if err != nil {
 			return PlayedMove{}, ErrRuleIllegalPlay.WithInfo(err.Error())
 		}
 		if win {
 			// 只有获胜才需要进行牌型分解
 			st.Trick.BiggerSeat = seat
-			blockGroups, decomposeErr := rules.DecomposeThrow(selected, st.Trump.Trump, sc)
-			if decomposeErr != nil {
-				return PlayedMove{}, ErrSystem.WithInfo(decomposeErr.Error())
-			}
-			currentMove.Move.Blocks = blockGroups
+			currentMove.Move.Blocks = winningBlocks
 		}
 	}
 	return currentMove, nil
@@ -695,9 +723,9 @@ func settleTrickEnd(st *GameState) string {
 	st.TrickIndex++
 	notice := ""
 	if inCallerGroup(st, winner) {
-		notice = fmt.Sprintf("本墩结束，赢家:%d号位（坐家），共跑分:%d，打家不得分", winner, points)
+		notice = fmt.Sprintf("本墩结束，赢家:%s（坐家），共跑分:%d，打家不得分", SeatName(winner), points)
 	} else {
-		notice = fmt.Sprintf("本墩结束，赢家:%d号位（打家），共吃分:%d，打家累计分:%d", winner, points, st.Points)
+		notice = fmt.Sprintf("本墩结束，赢家:%s（打家），共吃分:%d，打家累计分:%d", SeatName(winner), points, st.Points)
 	}
 
 	// 末墩抠底：在“所有人手牌为空”时触发
@@ -725,7 +753,14 @@ func settleDigBottom(st *GameState, winner int) string {
 	if winner >= 0 && winner < 4 {
 		if pm := st.Trick.LastPlays[winner]; pm != nil {
 			if len(pm.Blocks) > 0 && len(pm.Blocks[0]) > 0 {
-				mul = rules.DigMultiplierByWinnerMove(pm.Blocks[0][0].Type)
+				for _, group := range pm.Blocks {
+					for _, block := range group {
+						m := rules.DigMultiplierByWinnerMove(block.Type)
+						if m > mul {
+							mul = m
+						}
+					}
+				}
 			}
 		}
 	}
@@ -775,14 +810,20 @@ func settleRoundEnd(st *GameState) string {
 
 	// 切 phase：等待 nextStarter 点击开始下一局
 	st.Phase = PhaseRoundSettle
+	for team := range st.Teams {
+		if st.Teams[team].LevelRank == rules.RA {
+			st.Phase = PhaseGameOver
+			st.WinnerTeam = team
+		}
+	}
 
 	// 注意：这里不清 Points/Trick 等，让前端还能看到本局结果
 	notice := fmt.Sprintf(
-		"小局结束：打家得分=%d，结果=%s，坐家+%d 打家+%d，下一局先手定主权=玩家%d（需其点击开始下一局）",
-		st.RoundPointsFinal, st.RoundResultLabel, st.CallerDelta, st.DefenderDelta, st.NextStarterSeat,
+		"小局结束：打家得分=%d，结果=%s，坐家+%d 打家+%d，下一局先手定主权=%s（需其点击开始下一局）",
+		st.RoundPointsFinal, st.RoundResultLabel, st.CallerDelta, st.DefenderDelta, SeatName(st.NextStarterSeat),
 	)
 	if st.Points >= 80 {
-		notice += fmt.Sprintf("（换坐：叫主起点从%d号位顺延到%d号位）", st.CallerSeat, st.NextStarterSeat)
+		notice += fmt.Sprintf("（换坐：叫主起点从%s顺延到%s）", SeatName(st.CallerSeat), SeatName(st.NextStarterSeat))
 	}
 	return notice
 }
@@ -828,7 +869,7 @@ func reduceStartNextRound(st GameState, uid string, typ ClientEventType, payload
 		return ReduceResult{State: st}, err
 	}
 	if seat != st.NextStarterSeat {
-		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请等待%d号位开始下一局", st.NextStarterSeat)
+		return ReduceResult{State: st}, ErrStateNotYourTurn.WithInfof("请等待%s开始下一局", SeatName(st.NextStarterSeat))
 	}
 	// ---- 跨小局推进：RoundIndex + 清场 ----
 	st.RoundIndex++
@@ -862,6 +903,6 @@ func reduceStartNextRound(st GameState, uid string, typ ClientEventType, payload
 	// 发牌
 	st.Phase = PhaseDealing
 	startDeal(&st)
-	notice := fmt.Sprintf("玩家%d开始下一小局（第%d局），%d号位优先定主", seat, st.RoundIndex, st.CallerSeat)
+	notice := fmt.Sprintf("玩家%s开始下一小局（第%d局），%s优先定主", SeatName(seat), st.RoundIndex+1, SeatName(st.CallerSeat))
 	return ReduceResult{State: st, Changed: true, Notice: notice}, nil
 }

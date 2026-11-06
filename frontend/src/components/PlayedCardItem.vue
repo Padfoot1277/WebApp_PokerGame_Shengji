@@ -1,18 +1,18 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { suitToSymbol } from '../utils/card'
+import { computed } from "vue";
+import { suitToSymbol } from "../utils/card";
 
 type Card = {
-  id: number
-  suit: string
-  rank: string
-}
+  id: number;
+  suit: string;
+  rank: string;
+};
 
 const props = defineProps<{
-  card: Card
-}>()
+  card: Card;
+}>();
 
-const suitInfo = computed(() => suitToSymbol(props.card.suit))
+const suitInfo = computed(() => suitToSymbol(props.card.suit));
 </script>
 
 <template>
@@ -26,15 +26,16 @@ const suitInfo = computed(() => suitToSymbol(props.card.suit))
 <style scoped>
 /* 尽量对齐 HandArea 中 .card 的“牌面按钮”外观 */
 .played-card {
-  min-width: 44px;
-  height: 40px;
+  min-width: 32px;
+  padding: 2px 5px;
+  height: 32px;
   margin: 2px;
   border-radius: 6px;
 
-  background: #fafafa;          /* 与手牌一致的浅背景 */
+  background: #fafafa; /* 与手牌一致的浅背景 */
   border: 1px solid #bfb9b9;
 
-  font-size: 20px;
+  font-size: 16px;
   line-height: 1;
   display: inline-flex;
   align-items: center;
@@ -43,12 +44,12 @@ const suitInfo = computed(() => suitToSymbol(props.card.suit))
   /* 只读，不要像“禁用控件”那样发灰 */
   opacity: 1;
   cursor: default;
-  pointer-events: none;          /* 防止 hover/active 等交互 */
+  pointer-events: none; /* 防止 hover/active 等交互 */
 }
 
 /* suit / rank 默认颜色逻辑：与手牌区一致 */
 .suit.black {
-  color: #000;                  /* 纯黑 */
+  color: #000; /* 纯黑 */
 }
 .suit.red {
   color: #e53935;

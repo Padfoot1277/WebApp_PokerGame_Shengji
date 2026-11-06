@@ -1,92 +1,80 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '../store/game'
-import { suitToSymbol } from '../utils/card'
+import { seatName as seatLabel } from "../utils/seat";
+import { computed } from "vue";
+import { useGameStore } from "../store/game";
+import { suitToSymbol } from "../utils/card";
 
-const game = useGameStore()
-const v = computed(() => game.view)
+const game = useGameStore();
+const v = computed(() => game.view);
 
-const phase = computed(() => v.value?.phase ?? '')
-const trump = computed(() => v.value?.trump)
-const starterSeat = computed(() => v.value?.starterSeat ?? -1)
-const beaterScore = computed(() => v.value?.points ?? -1)
+const phase = computed(() => v.value?.phase ?? "");
+const trump = computed(() => v.value?.trump);
+const starterSeat = computed(() => v.value?.starterSeat ?? -1);
+const beaterScore = computed(() => v.value?.points ?? -1);
 
 const phaseText: Record<string, string> = {
-  lobby: '准备',
-  dealing: '发牌',
-  call_trump: '定主',
-  bottom: '扣底',
-  trump_fight: '攻改',
-  play_trick: '出牌',
-  follow_trick: '跟牌',
-  round_settle: '小局结束',
-}
-const nextRoundOwner = computed(() => v.value?.nextStarterSeat ?? -1)
+  lobby: "准备",
+  dealing: "发牌",
+  call_trump: "定主",
+  bottom: "扣底",
+  trump_fight: "攻改",
+  play_trick: "出牌",
+  round_settle: "小局结束",
+  game_over: "整局结束",
+};
+const nextRoundOwner = computed(() => v.value?.nextStarterSeat ?? -1);
 
 const trumpSuitInfo = computed(() => {
-  if (!trump.value?.hasTrumpSuit) return null
-  return suitToSymbol(trump.value.suit)
-})
-
-function seatLabel(idx: number): string {
-  const map = ['⓪', '①', '②', '③']
-  return map[idx] ?? String(idx)
-}
+  if (!trump.value?.hasTrumpSuit) return null;
+  return suitToSymbol(trump.value.suit ?? "");
+});
 </script>
 
 <template>
   <div class="panel">
     <div class="info-line">
-  <span class="tag">
-    <strong>阶段</strong>
-    {{ phaseText[phase] ?? phase }}
-  </span>
+      <span class="tag">
+        <strong>阶段</strong>
+        {{ phaseText[phase] ?? phase }}
+      </span>
 
       <template v-if="starterSeat >= 0">
-    <span class="tag">
-      <strong>坐庄</strong>
-      {{ seatLabel(starterSeat) }}
-    </span>
+        <span class="tag">
+          <strong>{{ phase === "call_trump" ? "定主起点" : "坐庄" }}</strong>
+          {{ seatLabel(starterSeat) }}
+        </span>
 
         <span class="tag">
-          <strong>级牌</strong> {{ trump.levelRank }}
-    </span>
+          <strong>级牌</strong>
+          {{ trump?.levelRank === "Pending" ? "待定主" : trump?.levelRank }}
+        </span>
+
+        <span v-if="trump?.levelRank !== 'Pending'" class="tag">
+          <strong>主牌</strong>
+          <span
+            v-if="trump?.hasTrumpSuit && trumpSuitInfo"
+            :class="{ locked: trump?.locked }"
+          >
+            {{ trumpSuitInfo.symbol }}
+          </span>
+          <span v-else class="trump-badge hard">硬主</span>
+        </span>
+
+        <span v-if="trump?.locked" class="tag warn"> 🔒锁主 </span>
 
         <span
-            v-if="trump.levelRank !== 'Pending'"
-            class="tag"
+          v-if="phase === 'round_settle' || phase === 'play_trick'"
+          class="tag score"
         >
-      <strong>主牌</strong>
-      <span
-          v-if="trump.hasTrumpSuit && trumpSuitInfo"
-          :class="{ locked: trump.locked }"
-      >
-          {{ trumpSuitInfo.symbol }}
-      </span>
-      <span v-else class="trump-badge hard">硬主</span>
-    </span>
-
-        <span v-if="trump.locked" class="tag warn">
-      🔒锁主
-    </span>
-
-        <span
-            v-if="phase === 'round_settle' || phase === 'play_trick'"
-            class="tag score"
-        >
-      <strong>得分</strong> {{ beaterScore }}
-    </span>
+          <strong>得分</strong> {{ beaterScore }}
+        </span>
       </template>
     </div>
 
-
-    <div
-        v-if="phase === 'round_settle'"
-        class="row"
-    >
-  <span v-if="nextRoundOwner >= 0">
-    请等待 {{ nextRoundOwner }}号位 开始下一小局
-  </span>
+    <div v-if="phase === 'round_settle'" class="row">
+      <span v-if="nextRoundOwner >= 0">
+        请等待 {{ seatLabel(nextRoundOwner) }} 开始下一小局
+      </span>
     </div>
   </div>
 </template>
@@ -153,7 +141,7 @@ function seatLabel(idx: number): string {
 }
 
 .trump-badge {
-  border-color: #4da3ff;   /* 用你已有的 notice 蓝 */
+  border-color: #4da3ff; /* 用你已有的 notice 蓝 */
 }
 
 .trump-badge.locked {
@@ -209,12 +197,10 @@ function seatLabel(idx: number): string {
   font-weight: 600;
 }
 
-
 /* 主牌徽章可稍微缩小一点 */
 .trump-badge {
   margin-left: 2px;
   display: inline-flex;
   align-items: center;
 }
-
 </style>

@@ -1,0 +1,9 @@
+.idea/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+*.log
+.env
+
+data/
+internal/*/data/

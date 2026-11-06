@@ -1,72 +1,71 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { suitToSymbol } from '../utils/card'
+import { computed } from "vue";
+import { suitToSymbol } from "../utils/card";
 
-const suitInfo = computed(() => suitToSymbol(props.card.suit))
+const suitInfo = computed(() => suitToSymbol(props.card.suit));
 
 type Card = {
-  id: number
-  suit: string
-  rank: string
-}
+  id: number;
+  suit: string;
+  rank: string;
+};
 
 const props = defineProps<{
-  card: Card
-  selected: boolean
-}>()
+  card: Card;
+  selected: boolean;
+}>();
 
 const emit = defineEmits<{
-  (e: 'toggle', id: number): void
-}>()
+  (e: "toggle", id: number): void;
+}>();
 
 function onClick(e: MouseEvent) {
-  emit('toggle', props.card.id)
+  if (e.detail === 0) emit("toggle", props.card.id);
 
   // 关键：手动取消 focus
-  const target = e.currentTarget as HTMLButtonElement
-  target.blur()
+  const target = e.currentTarget as HTMLButtonElement;
+  target.blur();
 }
-
 </script>
 
 <template>
   <button
-      class="card"
-      :class="{ selected }"
-      @click="onClick"
+    class="card"
+    :class="{ selected }"
+    :aria-pressed="selected"
+    :aria-label="`${card.suit}${card.rank}`"
+    @click="onClick"
   >
-  <span
-      class="suit"
-      :class="suitInfo.color"
-  >
-    {{ suitInfo.symbol }}
-  </span>
+    <span class="suit" :class="suitInfo.color">
+      {{ suitInfo.symbol }}
+    </span>
     <span class="rank">
-    {{ card.rank }}
-  </span>
+      {{ card.rank }}
+    </span>
   </button>
 </template>
 
 <style scoped>
 .card {
-  min-width: 44px;
-  height: 50px;
+  min-width: 36px;
+  padding: 3px 6px;
+  height: 44px;
   margin: 2px;
   border-radius: 6px;
 
   border: 1px solid #5a5a5a;
 
-  background: #fefefe;   /* 默认 */
+  background: #fefefe; /* 默认 */
   color: #000;
-  display: flex;              /* ⭐ 关键 */
-  align-items: center;        /* 垂直居中 */
-  justify-content: center;    /* 水平居中 */
+  display: flex; /* ⭐ 关键 */
+  align-items: center; /* 垂直居中 */
+  justify-content: center; /* 水平居中 */
   gap: 2px;
   transition:
-      background 0.15s ease,
-      border-color 0.15s ease,
-      box-shadow 0.15s ease,
-      transform 0.1s ease;
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.1s ease;
 
   appearance: none;
   -webkit-appearance: none;
@@ -75,7 +74,7 @@ function onClick(e: MouseEvent) {
 }
 
 /* 👇 关键：覆盖所有非 selected 状态 */
-.card:not(.selected){
+.card:not(.selected) {
   background: #f8f8f8;
   color: #000;
 }
@@ -101,7 +100,6 @@ function onClick(e: MouseEvent) {
 .card:active {
   transform: scale(0.96);
 }
-
 
 /* ===== 彻底禁用移动端 focus 残留 ===== */
 

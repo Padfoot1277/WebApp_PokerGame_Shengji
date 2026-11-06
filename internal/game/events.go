@@ -3,10 +3,12 @@ package game
 type ClientEventType string
 
 const (
-	EvSit     ClientEventType = "room.sit"
-	EvLeave   ClientEventType = "room.leave_seat"
-	EvReady   ClientEventType = "room.ready"
-	EvUnready ClientEventType = "room.unready"
+	EvSurrender       ClientEventType = "game.surrender"
+	EvCancelSurrender ClientEventType = "game.cancel_surrender"
+	EvSit             ClientEventType = "room.sit"
+	EvLeave           ClientEventType = "room.leave_seat"
+	EvReady           ClientEventType = "room.ready"
+	EvUnready         ClientEventType = "room.unready"
 
 	EvStart          ClientEventType = "game.start"
 	EvStartNextRound ClientEventType = "game.start_next_round"

@@ -1,8 +1,8 @@
 package rules
 
 import (
-	"math/rand"
-	"time"
+	"crypto/rand"
+	"math/big"
 )
 
 const DoubleDeckSize = 108
@@ -40,9 +40,12 @@ func NewDoubleDeck() []Card {
 
 // ShuffleInPlace 最优级别的算法（Fisher–Yates 洗牌）
 func ShuffleInPlace(deck []Card) {
-	r := rand.New(rand.NewSource(time.Now().UnixNano()))
 	for i := len(deck) - 1; i > 0; i-- {
-		j := r.Intn(i + 1)
+		n, err := rand.Int(rand.Reader, big.NewInt(int64(i+1)))
+		if err != nil {
+			panic("secure shuffle unavailable")
+		}
+		j := int(n.Int64())
 		deck[i], deck[j] = deck[j], deck[i]
 	}
 }

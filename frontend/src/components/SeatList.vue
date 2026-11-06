@@ -1,189 +1,85 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '../store/game'
-
-const game = useGameStore()
-
-// 原始数据
-const seats = computed(() => game.view?.seats ?? [])
-const mySeat = computed(() => game.view?.mySeat ?? -1)
-
-// UI 展示顺序映射：0 1 3 2
-const seatOrder = [0, 1, 3, 2]
-
-// 根据映射得到展示用 seats
-const displaySeats = computed(() => {
-  const arr = seats.value
-  return seatOrder
-      .map(i => arr[i])
-      .filter(Boolean)
-})
-
-function sit(seat: number) {
-  game.sendEvent('room.sit', { seat })
-}
-
-function leave() {
-  game.sendEvent('room.leave_seat', {})
-}
-
-const myReady = computed(() =>
-    mySeat.value >= 0 ? game.view.seats[mySeat.value].ready : false
-)
-
-function ready() {
-  game.sendEvent('room.ready', {})
-}
-
-function unready() {
-  game.sendEvent('room.unready', {})
-}
-
-function seatLabel(idx: number): string {
-  const map = ['⓪', '①', '②', '③']
-  return map[idx] ?? String(idx)
-}
+import { computed } from "vue";
+import { useGameStore } from "../store/game";
+import { seatName } from "../utils/seat";
+const game = useGameStore();
+const seats = computed(() => game.view?.seats ?? []);
+const mySeat = computed(() => game.view?.mySeat ?? -1);
+const enabled = computed(() => game.wsStatus === "open" && !game.pending);
 </script>
-
 <template>
-  <div class="panel">
-    <h3>座位信息</h3>
-
+  <section class="panel">
+    <h3>选择座位 <small>东与西、南与北互为队友</small></h3>
     <div class="seat-grid">
       <div
-          v-for="(s, displayIdx) in displaySeats"
-          :key="seatOrder[displayIdx]"
-          class="seat"
-          :class="{ mine: seatOrder[displayIdx] === mySeat }"
+        v-for="(seat, index) in seats"
+        :key="index"
+        class="seat"
+        :class="{ mine: index === mySeat }"
       >
-        <!-- 显示真实 seat 编号 -->
-        <div><strong>{{ seatLabel(seatOrder[displayIdx]) }}号位 </strong></div>
-
-        <div v-if="s.uid">昵称：{{ s.uid }}</div>
-        <div v-else>空位</div>
-        <div :class="s.online ? 'status-online' : 'status-offline'">
-          状态：{{ s.online ? '在线' : '离线' }}
-        </div>
-        <div>准备：{{ s.ready ? '是' : '否' }}</div>
-
-        <!-- 按钮区域 -->
+        <strong
+          >{{ seatName(index) }} {{ index === mySeat ? "· 我" : "" }}</strong
+        >
+        <p>{{ seat.name || "等待牌友入座" }}</p>
+        <small>{{
+          seat.uid
+            ? seat.online
+              ? seat.ready
+                ? "已准备"
+                : "未准备"
+              : "暂时离线"
+            : "空位"
+        }}</small>
         <div class="actions">
           <button
-              v-if="!s.uid"
-              @click="sit(seatOrder[displayIdx])"
+            v-if="!seat.uid"
+            :disabled="!enabled"
+            @click="game.sendEvent('room.sit', { seat: index })"
           >
             入座
           </button>
-
-          <button
-              v-if="seatOrder[displayIdx] === mySeat"
-              @click="leave"
+          <template v-if="index === mySeat"
+            ><button
+              :disabled="!enabled"
+              @click="
+                game.sendEvent(seat.ready ? 'room.unready' : 'room.ready', {})
+              "
+            >
+              {{ seat.ready ? "取消准备" : "准备" }}</button
+            ><button
+              :disabled="!enabled"
+              @click="game.sendEvent('room.leave_seat', {})"
+            >
+              离座
+            </button></template
           >
-            离座
-          </button>
-
-          <button
-              v-if="mySeat >= 0 && !myReady && seatOrder[displayIdx] === mySeat"
-              @click="ready"
-          >
-            准备
-          </button>
-
-          <button
-              v-if="mySeat >= 0 && myReady && seatOrder[displayIdx] === mySeat"
-              @click="unready"
-          >
-            取消准备
-          </button>
         </div>
       </div>
     </div>
-  </div>
+    <p v-if="!seats.length">加入房间后选择座位，四人准备完成自动开始。</p>
+  </section>
 </template>
-
 <style scoped>
-
-/* 标题层级 */
-.panel h3 {
-  margin: 0 0 14px 0;
-  font-size: 18px;
-  font-weight: 600;
-}
-
-/* 保持 2x2 布局 */
 .seat-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
 }
-
-/* 单个座位块 */
 .seat {
-  background: #c7edcc;
-  padding: 14px 14px 16px 14px;
-  border-radius: var(--radius);
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  min-height: 150px;
+  padding: 16px;
+  background: #f2f7f4;
+  border-radius: 12px;
 }
-
-/* 自己的座位高亮 */
-.seat.mine {
-  outline: 2px solid #4da3ff;
+.mine {
+  outline: 2px solid #20856d;
 }
-
-/* Seat 标题 */
-.seat strong {
-  font-size: 18px;
-  font-weight: 600;
-}
-
-/* 文字信息层级 */
-.seat div {
-  font-size: 16px;
-  line-height: 1.4;
-}
-
-/* 状态文本稍微淡一点 */
-.seat div:nth-child(n+2) {
-  color: rgba(0, 0, 0, 0.75);
-}
-
-/* 按钮统一尺寸 */
-.panel button {
-  margin-top: 6px;
-  height: 38px;
-  min-width: 70px;
-  padding: 0 14px;
-  border-radius: 6px;
-  background: #4da3ff;
-  color: #fff;
-  align-self: flex-start;
-  font-size: 16px;
-  font-weight: 500;
-}
-
-/* hover 保持 */
-@media (hover: hover) and (pointer: fine) {
-  .panel button:hover {
-    filter: brightness(1.1);
-  }
-}
-.status-online {
-  color: #2e7d32;
-}
-
-.status-offline {
-  color: #b71c1c;
-}
-
 .actions {
   display: flex;
   gap: 8px;
-  margin-top: 8px;
-  flex-wrap: wrap; /* 防止窄屏溢出 */
+  margin-top: 12px;
 }
-
+small {
+  font-weight: normal;
+  color: #65796f;
+}
 </style>

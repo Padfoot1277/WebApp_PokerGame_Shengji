@@ -1,11 +1,11 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '../store/game'
+import { computed } from "vue";
+import { useGameStore } from "../store/game";
 
-const game = useGameStore()
+const game = useGameStore();
 
-const teams = computed(() => game.view?.teams)
-const roundIndex = computed(() => game.view?.roundIndex ?? 0)
+const teams = computed(() => game.view?.teams);
+const roundIndex = computed(() => game.view?.roundIndex ?? 0);
 </script>
 
 <template>
@@ -17,16 +17,16 @@ const roundIndex = computed(() => game.view?.roundIndex ?? 0)
 
       <div v-if="teams" class="teams">
         <div class="team">
-          <span class="team-label">⓪②队</span>
-          <span class="level">{{ teams[0].levelRank }}</span>
+          <span class="team-label">东西队</span>
+          <span class="level">{{ teams[0]?.levelRank }}</span>
           <span class="unit">级</span>
         </div>
 
         <div class="divider"></div>
 
         <div class="team">
-          <span class="team-label">①③队</span>
-          <span class="level">{{ teams[1].levelRank }}</span>
+          <span class="team-label">南北队</span>
+          <span class="level">{{ teams[1]?.levelRank }}</span>
           <span class="unit">级</span>
         </div>
       </div>
@@ -38,7 +38,7 @@ const roundIndex = computed(() => game.view?.roundIndex ?? 0)
 .row {
   display: flex;
   align-items: center;
-  gap: 24px;   /* 控制两个元素之间的距离 */
+  gap: 24px; /* 控制两个元素之间的距离 */
 }
 
 .panel {
@@ -97,5 +97,28 @@ const roundIndex = computed(() => game.view?.roundIndex ?? 0)
   height: 18px;
   background: rgba(0, 0, 0, 0.15);
 }
-
+.round,
+.team-label,
+.unit {
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .row {
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .teams {
+    gap: 10px;
+    padding: 4px 8px;
+  }
+  .team {
+    gap: 4px;
+  }
+  .team-label {
+    font-size: 13px;
+  }
+  .level {
+    font-size: 17px;
+  }
+}
 </style>

@@ -41,7 +41,7 @@ func validateNonEmpty(ids []int) *AppError {
 
 func allReady(st *GameState) bool {
 	for i := 0; i < 4; i++ {
-		if st.Seats[i].UID == "" || !st.Seats[i].Ready {
+		if st.Seats[i].UID == "" || !st.Seats[i].Online || !st.Seats[i].Ready {
 			return false
 		}
 	}

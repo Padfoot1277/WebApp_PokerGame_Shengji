@@ -1,34 +1,18 @@
-// ===== Server -> Client =====
-
-export type HelloMsg = {
-    type: 'hello'
-    uid: string
-}
-
-export type SnapshotMsg<T = any> = {
-    type: 'snapshot'
-    state: T
-}
-
-export type ErrorMsg = {
-    type: 'error'
-    message: string
-}
-
-export type NoticeMsg = {
-    type: 'notice'
-    message: string
-}
-
+import type { ViewState } from "./view";
 export type ServerMessage =
-    | HelloMsg
-    | SnapshotMsg
-    | ErrorMsg
-    | NoticeMsg
-
-// ===== Client -> Server =====
-
-export type ClientEvent<T = any> = {
-    type: string
-    payload: T
+  | { type: "hello"; uid: string; token: string; name: string }
+  | { type: "snapshot"; state: ViewState }
+  | { type: "error" | "notice"; message: string; code?: string }
+  | {
+      type: "ack";
+      reqId: string;
+      ok: boolean;
+      code: string;
+      message: string;
+      version: number;
+    };
+export interface ClientEvent<T = unknown> {
+  type: string;
+  payload: T;
+  reqId: string;
 }

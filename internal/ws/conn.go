@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -14,11 +16,26 @@ import (
 )
 
 var upgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool { return true }, // LAN demo
+	CheckOrigin: func(r *http.Request) bool {
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+		if u, err := url.Parse(origin); err == nil && u.Host == r.Host {
+			return true
+		}
+		for _, allowed := range strings.Split(os.Getenv("ALLOWED_ORIGINS"), ",") {
+			if origin == strings.TrimSpace(allowed) {
+				return true
+			}
+		}
+		return false
+	},
 }
 
 type Envelope struct {
 	Type    string          `json:"type"`
+	ReqID   string          `json:"reqId"`
 	Payload json.RawMessage `json:"payload"`
 }
 
@@ -26,7 +43,7 @@ type Envelope struct {
 type Router interface {
 	OnConnect(c transport.Client)
 	OnDisconnect(c transport.Client)
-	OnMessage(c transport.Client, typ string, payload json.RawMessage)
+	OnMessage(c transport.Client, typ string, payload json.RawMessage, reqID string)
 }
 
 type Conn struct {
@@ -36,6 +53,8 @@ type Conn struct {
 
 	closeOnce sync.Once
 
+	name   string
+	token  string
 	uid    string
 	roomID string
 }
@@ -45,6 +64,8 @@ type HelloMsg struct {
 	UID  string `json:"uid"`
 }
 
+func (c *Conn) Name() string   { return c.name }
+func (c *Conn) Token() string  { return c.token }
 func (c *Conn) UID() string    { return c.uid }
 func (c *Conn) RoomID() string { return c.roomID }
 
@@ -62,10 +83,15 @@ func (c *Conn) SendJSON(v any) error {
 		return websocket.ErrCloseSent
 	default:
 		// 发送队列满，认为连接异常
+		_ = c.Close()
 		return websocket.ErrCloseSent
 	}
 }
 
+func (c *Conn) Replace() {
+	_ = c.ws.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(4001, "session replaced"), time.Now().Add(time.Second))
+	_ = c.Close()
+}
 func (c *Conn) Close() error {
 	var err error
 	c.closeOnce.Do(func() {
@@ -76,27 +102,37 @@ func (c *Conn) Close() error {
 }
 
 func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
+	id, token, err := session(r.URL.Query().Get("token"), r.URL.Query().Get("name"))
+	if err != nil {
+		socket, e := upgrader.Upgrade(w, r, nil)
+		if e == nil {
+			_ = socket.WriteControl(websocket.CloseMessage, websocket.FormatCloseMessage(4003, "session expired"), time.Now().Add(time.Second))
+			_ = socket.Close()
+		}
+		return
+	}
 	wsConn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Println("upgrade:", err)
 		return
 	}
-
-	uid := normalizeAnyUID(r.URL.Query().Get("uid"))
-	if uid == "" {
-		uid = time.Now().Format("150405")
-	}
+	uid := id.UID
 
 	roomID := r.URL.Query().Get("room")
+	if len([]rune(roomID)) > 32 {
+		_ = wsConn.Close()
+		return
+	}
 	if roomID == "" {
 		roomID = "default"
 	}
 
 	c := &Conn{
-		ws:     wsConn,
-		send:   make(chan []byte, 64),
-		done:   make(chan struct{}),
-		uid:    uid,
+		ws:   wsConn,
+		send: make(chan []byte, 64),
+		done: make(chan struct{}),
+		uid:  uid,
+		name: id.Name, token: token,
 		roomID: roomID,
 	}
 
@@ -113,12 +149,15 @@ func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
 }
 
 func (c *Conn) readLoop(router Router) {
+	c.ws.SetReadLimit(16 * 1024)
 	_ = c.ws.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.ws.SetPongHandler(func(string) error {
 		_ = c.ws.SetReadDeadline(time.Now().Add(60 * time.Second))
 		return nil
 	})
 
+	windowStart := time.Now()
+	requests := 0
 	for {
 		select {
 		case <-c.done:
@@ -141,7 +180,20 @@ func (c *Conn) readLoop(router Router) {
 			continue
 		}
 
-		router.OnMessage(c, env.Type, env.Payload)
+		if time.Since(windowStart) > time.Second {
+			windowStart = time.Now()
+			requests = 0
+		}
+		requests++
+		if requests > 30 || len(env.ReqID) > 80 {
+			_ = c.Close()
+			return
+		}
+		if env.ReqID == "" {
+			_ = c.SendJSON(map[string]any{"type": "error", "code": "MISSING_REQ_ID", "message": "请求缺少编号"})
+			continue
+		}
+		router.OnMessage(c, env.Type, env.Payload, env.ReqID)
 	}
 }
 

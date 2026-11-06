@@ -1,27 +1,27 @@
 <script setup lang="ts">
-import type { PropType } from 'vue'
-import { computed } from 'vue'
-import PlayedCardItem from './PlayedCardItem.vue'
+import type { PropType } from "vue";
+import { computed } from "vue";
+import PlayedCardItem from "./PlayedCardItem.vue";
 
-type Card = { id: number; suit: string; rank: string }
+type Card = { id: number; suit: string; rank: string };
 
 type Block = {
-  type: string
-  suitClass: string
-  ranks: number
-  tractor_len: number
-  cards: Card[]
-}
+  type: string;
+  suitClass: string;
+  ranks: number;
+  tractor_len: number;
+  cards: Card[];
+};
 
 type PlayedMove = {
-  seat: number
-  suitClass: string
+  seat: number;
+  suitClass: string;
   followMove: {
-    blocks: Block[][]
-    cards: Card[]
-  }
-  info?: string
-}
+    blocks: Block[][] | null;
+    cards: Card[];
+  };
+  info?: string;
+};
 
 const props = defineProps({
   move: {
@@ -30,9 +30,9 @@ const props = defineProps({
   },
   isLeader: { type: Boolean, default: false },
   isTurn: { type: Boolean, default: false },
-})
+});
 
-const suitClassText = computed(() => props.move?.suitClass ?? '')
+const suitClassText = computed(() => props.move?.suitClass ?? "");
 </script>
 
 <template>
@@ -41,11 +41,17 @@ const suitClassText = computed(() => props.move?.suitClass ?? '')
 
     <template v-else>
       <div class="cards">
-        <PlayedCardItem v-for="c in move.followMove.cards" :key="c.id" :card="c" />
+        <PlayedCardItem
+          v-for="c in move.followMove.cards"
+          :key="c.id"
+          :card="c"
+        />
       </div>
 
       <div class="meta">
-        <span v-if="suitClassText" class="meta-item">✿ {{ suitClassText }}</span>
+        <span v-if="suitClassText" class="meta-item"
+          >✿ {{ suitClassText }}</span
+        >
         <span v-if="move.info" class="meta-item"> {{ move.info }}</span>
       </div>
     </template>
@@ -55,14 +61,13 @@ const suitClassText = computed(() => props.move?.suitClass ?? '')
 <style scoped>
 /* 右上角浮层的“卡片” */
 .trick-mini {
-  width: 100%;              /* 你可以改 180/200/240 */
-  max-width: 60vw;
-  background: #c7edcc;
+  width: 100%; /* 你可以改 180/200/240 */
+  max-width: 100%;
+  background: transparent;
   border-radius: 10px;
-  padding: 6px;
+  padding: 2px;
   font-size: 12px;
 }
-
 
 /* 标签行 */
 .topline {
@@ -102,7 +107,7 @@ const suitClassText = computed(() => props.move?.suitClass ?? '')
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  font-size: 16px;
+  font-size: 12px;
 }
 
 .meta-item {

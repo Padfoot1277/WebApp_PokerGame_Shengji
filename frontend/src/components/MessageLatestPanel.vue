@@ -1,30 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '../store/game'
+import { computed } from "vue";
+import { useGameStore } from "../store/game";
 
-const game = useGameStore()
+const game = useGameStore();
 
 const displayList = computed(() => {
-  const arr = game.messages
-  return arr.length ? [arr[arr.length - 1]] : []
-})
+  const arr = game.messages;
+  return arr.slice(-1);
+});
 </script>
 
 <template>
   <div class="panel message-panel">
-    <div v-if="displayList.length === 0" class="msg notice">
-      暂无系统消息
-    </div>
-    <div
-        v-for="m in displayList"
-        :key="m.id"
-        :class="['msg', m.level]"
-    >
+    <div v-if="displayList.length === 0" class="msg notice">暂无系统消息</div>
+    <div v-for="m in displayList" :key="m.id" :class="['msg', m.level]">
       {{ m.text }}
     </div>
   </div>
 </template>
-
 
 <style scoped>
 .message-panel {
@@ -34,7 +27,6 @@ const displayList = computed(() => {
   display: flex;
   align-items: center;
 }
-
 
 .msg {
   font-size: 18px;
@@ -56,6 +48,4 @@ const displayList = computed(() => {
   margin-bottom: 6px;
   opacity: 0.7;
 }
-
-
 </style>

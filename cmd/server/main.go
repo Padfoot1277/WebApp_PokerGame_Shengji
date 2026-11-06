@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"time"
 
 	"upgrade-lan/internal/room"
 	"upgrade-lan/internal/ws"
@@ -19,9 +21,16 @@ func main() {
 		ws.ServeWS(hub, rm, w, r)
 	})
 
-	http.Handle("/", http.FileServer(http.Dir("./web")))
+	http.Handle("/", http.FileServer(http.Dir(env("WEB_DIR", "./frontend/dist"))))
 
-	addr := ":8080"
+	addr := env("ADDR", ":8080")
 	log.Println("server listening on", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal((&http.Server{Addr: addr, ReadHeaderTimeout: 5 * time.Second, IdleTimeout: 60 * time.Second}).ListenAndServe())
+}
+
+func env(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
 }

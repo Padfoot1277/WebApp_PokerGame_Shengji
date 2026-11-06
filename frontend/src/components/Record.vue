@@ -1,26 +1,25 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '../store/game'
+import { computed } from "vue";
+import { useGameStore } from "../store/game";
 
-const game = useGameStore()
-const v = computed(() => game.view)
+const game = useGameStore();
+const v = computed(() => game.view);
 
 const SUITS = [
-  { key: 'spade', label: '♠️' },
-  { key: 'heart', label: '♥️' },
-  { key: 'club', label: '♣️' },
-  { key: 'diamond', label: '♦️' },
-] as const
+  { key: "spade", label: "♠️" },
+  { key: "heart", label: "♥️" },
+  { key: "club", label: "♣️" },
+  { key: "diamond", label: "♦️" },
+] as const;
 
-const record = computed(() =>
-    v.value?.record ?? null
-)
+const record = computed(() => v.value?.record ?? null);
 
-const showBoard = computed(() =>
+const showBoard = computed(
+  () =>
     v.value?.hideRecord === false &&
-    v.value?.phase === 'play_trick' &&
-    record.value !== null
-)
+    v.value?.phase === "play_trick" &&
+    record.value !== null,
+);
 </script>
 
 <template>
@@ -28,7 +27,6 @@ const showBoard = computed(() =>
     <h4>记牌器</h4>
 
     <div v-if="record">
-
       <!-- 王 -->
       <div class="joker-row">
         👑 大王 {{ record.bigJoker ?? 0 }}
@@ -38,41 +36,35 @@ const showBoard = computed(() =>
 
       <!-- 表格 -->
       <table class="record-table">
-          <colgroup>
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-            <col style="width: 20%" />
-          </colgroup>
+        <colgroup>
+          <col style="width: 20%" />
+          <col style="width: 20%" />
+          <col style="width: 20%" />
+          <col style="width: 20%" />
+          <col style="width: 20%" />
+        </colgroup>
         <thead>
-        <tr>
-          <th>花色</th>
-          <th>总数</th>
-          <th>A</th>
-          <th>K</th>
-          <th>10</th>
-        </tr>
+          <tr>
+            <th>花色</th>
+            <th>总数</th>
+            <th>A</th>
+            <th>K</th>
+            <th>10</th>
+          </tr>
         </thead>
         <tbody>
-        <tr
-            v-for="s in SUITS"
-            :key="s.key"
-        >
-          <td class="suit">{{ s.label }}</td>
-          <td>{{ record[s.key].num }}</td>
-          <td>{{ record[s.key].a }}</td>
-          <td>{{ record[s.key].k }}</td>
-          <td>{{ record[s.key].ten }}</td>
-        </tr>
+          <tr v-for="s in SUITS" :key="s.key">
+            <td class="suit">{{ s.label }}</td>
+            <td>{{ record[s.key].num }}</td>
+            <td>{{ record[s.key].a }}</td>
+            <td>{{ record[s.key].k }}</td>
+            <td>{{ record[s.key].ten }}</td>
+          </tr>
         </tbody>
       </table>
-
     </div>
 
-    <div v-else class="hint">
-      暂无记牌数据
-    </div>
+    <div v-else class="hint">暂无记牌数据</div>
   </div>
 </template>
 <style scoped>
@@ -80,7 +72,6 @@ const showBoard = computed(() =>
   min-height: 120px;
   padding: 8px 0;
 }
-
 
 /* 标题 */
 .high-board h4 {
@@ -98,7 +89,7 @@ const showBoard = computed(() =>
   margin-bottom: 10px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: var(--bg-muted, rgba(255,255,255,0.04));
+  background: var(--bg-muted, rgba(255, 255, 255, 0.04));
   font-size: 18px;
   font-weight: 550;
 }
@@ -120,14 +111,13 @@ const showBoard = computed(() =>
   font-size: 18px;
 }
 
-
 /* 表头 */
 .record-table thead th {
   padding: 8px 4px;
   font-weight: 550;
   font-size: 18px;
   color: var(--text-muted, #aaa);
-  border-bottom: 2px solid var(--border-muted, rgba(255,255,255,0.1));
+  border-bottom: 2px solid var(--border-muted, rgba(255, 255, 255, 0.1));
 }
 
 /* 行 */
@@ -144,7 +134,7 @@ const showBoard = computed(() =>
   padding: 8px 4px;
   font-weight: 400;
   font-size: 18px;
-  border-bottom: 1px solid var(--border-muted, rgba(255,255,255,0.06));
+  border-bottom: 1px solid var(--border-muted, rgba(255, 255, 255, 0.06));
 }
 
 /* 花色 */

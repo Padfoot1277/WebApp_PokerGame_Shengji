@@ -1,283 +1,208 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '../store/game'
-
-const props = defineProps<{
-  selectedIds: number[]
-}>()
-
-const emit = defineEmits<{
-  (e: 'clear-selection'): void
-}>()
-
-const game = useGameStore()
-const v = computed(() => game.view)
-
-const mySeat = computed(() => v.value?.mySeat ?? -1)
-const phase = computed(() => v.value?.phase)
-const trick = computed(() => v.value?.trick)
-
-function clear() {
-  emit('clear-selection')
-}
-
-/* -----------------------
- * “高亮（可操作）”条件：只看权限
- * ---------------------- */
-
-const canPlayCardsNow = computed(() =>
-    !!phase.value &&
-    ['play_trick', 'follow_trick'].includes(phase.value) &&
-    mySeat.value >= 0 &&
-    mySeat.value === trick.value?.turnSeat
-)
-
-const canCallTrumpNow = computed(() =>
-    phase.value === 'call_trump' &&
-    mySeat.value >= 0 &&
-    (v.value.callMode === 'race'
-        ? v.value.trump.callerSeat === -1
-        : mySeat.value === v.value.callTurnSeat)
-)
-
-const canPutBottomNow = computed(() =>
-    phase.value === 'bottom' &&
-    mySeat.value >= 0 &&
-    mySeat.value === v.value.bottomOwnerSeat
-)
-
-const canTrumpFightNow = computed(() =>
-    phase.value === 'trump_fight' &&
-    mySeat.value >= 0 &&
-    mySeat.value !== v.value.bottomOwnerSeat
-)
-
-const canChangeTrumpNow = computed(() =>
-    canTrumpFightNow.value &&
-    v.value.trump.locked === false // 锁主不允许改主
-)
-
-const canAttackTrumpNow = computed(() =>
-    canTrumpFightNow.value
-)
-
-const canCallPassNow = computed(() => {
-  if (mySeat.value < 0) return false
-  if (phase.value === 'call_trump') return !v.value.callPassedSeats[mySeat.value]
-  if (phase.value === 'trump_fight') {
-    if (mySeat.value === v.value.bottomOwnerSeat) return false
-    return !v.value.fightPassedSeats[mySeat.value]
+import { computed } from "vue";
+import { useGameStore } from "../store/game";
+const props = defineProps<{ selectedIds: number[] }>();
+const emit = defineEmits<{ (e: "clear-selection"): void }>();
+const game = useGameStore();
+const v = computed(() => game.view);
+const enabled = computed(
+  () =>
+    game.wsStatus === "open" && !game.pending && (v.value?.mySeat ?? -1) >= 0,
+);
+const canCall = computed(() => {
+  const s = v.value;
+  return (
+    !!s &&
+    s.mySeat >= 0 &&
+    s.phase === "call_trump" &&
+    !s.callPassedSeats[s.mySeat] &&
+    (s.callMode === "race" || s.mySeat === s.callTurnSeat)
+  );
+});
+const canFight = computed(
+  () =>
+    v.value?.phase === "trump_fight" &&
+    v.value.mySeat === v.value.fightTurnSeat,
+);
+const canPlay = computed(
+  () =>
+    v.value?.phase === "play_trick" &&
+    v.value.mySeat === v.value.trick.turnSeat,
+);
+const canBottom = computed(
+  () =>
+    v.value?.phase === "bottom" && v.value.mySeat === v.value.bottomOwnerSeat,
+);
+const feedback = computed(() => game.messages[game.messages.length - 1]);
+const needed = computed(() => {
+  const s = v.value;
+  if (!s) return 0;
+  if (canBottom.value) return 8;
+  if (canPlay.value)
+    return (
+      s.trick.playedMoves[s.trick.leaderSeat]?.followMove.cards.length ?? 0
+    );
+  return 0;
+});
+const selectionHelp = computed(() =>
+  props.selectedIds.length === needed.value
+    ? "张数已满足，请确认跟牌结构"
+    : props.selectedIds.length < needed.value
+      ? `还需选择 ${needed.value - props.selectedIds.length} 张`
+      : `多选了 ${props.selectedIds.length - needed.value} 张，请取消部分选择`,
+);
+function send(type: string) {
+  const s = v.value;
+  if (!s || !enabled.value) return;
+  const cards = (s.myHand ?? [])
+    .flat()
+    .filter((c) => props.selectedIds.includes(c.id));
+  const jokers = cards.filter((c) => c.suit === "SJ" || c.suit === "BJ");
+  const levels = cards.filter((c) => c.suit !== "SJ" && c.suit !== "BJ");
+  if (type === "game.play_cards") {
+    if (!cards.length) {
+      game.pushMessage("error", "请先选牌");
+      return;
+    }
+    game.sendEvent(type, { cardIds: props.selectedIds });
+    return;
   }
-  return false
-})
-
-const canNextRoundNow = computed(() => {
-  if (mySeat.value < 0) return false
-  if (phase.value !== 'round_settle') return false
-  return mySeat.value === v.value?.nextStarterSeat
-})
-
-
-function nextRound() {
-  if (!canNextRoundNow.value) return
-  game.sendEvent('game.start_next_round', {})
-}
-
-/* -----------------------
- * 点击提交：做“最小形状校验”，不做规则校验
- * ---------------------- */
-
-function playCards() {
-  if (!canPlayCardsNow.value) return
-  if (props.selectedIds.length === 0) {
-    game.pushMessage('error', '请先选择要出的牌')
-    return
+  if (type === "game.put_bottom") {
+    if (cards.length !== 8) {
+      game.pushMessage("error", "扣底需要选择 8 张牌");
+      return;
+    }
+    game.sendEvent(type, { discardIds: props.selectedIds });
+    return;
   }
-  game.sendEvent('game.play_cards', { cardIds: props.selectedIds })
-}
-
-type Card = { id: number; suit: string; rank: string }
-
-function getCardsByIds(ids: number[]): Card[] {
-  const hand2D: Card[][] = (v.value?.myHand ?? []) as Card[][]
-  const flat = hand2D.flat()
-
-  const map = new Map<number, Card>()
-  for (const c of flat) {
-    if (c) map.set(c.id, c)
+  if (type === "game.attack_trump") {
+    if (jokers.length !== 2 || levels.length) {
+      game.pushMessage("error", "请选择两张同类王");
+      return;
+    }
+    game.sendEvent(type, { jokerIds: jokers.map((c) => c.id) });
+    return;
   }
-
-  return ids
-      .map((id) => map.get(id))
-      .filter((c): c is Card => Boolean(c))
-}
-
-function isJoker(card: Card): boolean {
-  return card.suit === 'SJ' || card.suit === 'BJ' || card.suit === '小王' || card.suit === '大王'
-}
-
-function splitJokers(ids: number[]) {
-  console.log(ids)
-  const cards = getCardsByIds(ids)
-  console.log(cards)
-  const jokers: Card[] = []
-  const others: Card[] = []
-  for (const c of cards) {
-    if (isJoker(c)) jokers.push(c)
-    else others.push(c)
+  if (
+    jokers.length !== 1 ||
+    !(type === "game.call_trump" ? [1, 2] : [2]).includes(levels.length)
+  ) {
+    game.pushMessage("error", "请选择一张王与所需级牌");
+    return;
   }
-  return { jokers, others }
-}
-
-function callTrump() {
-  if (!canCallTrumpNow.value) return
-
-  // 允许：1 joker + (1 or 2) level
-  if (!v.value?.myHand || v.value.myHand.length === 0) {
-    game.pushMessage('error', '手牌尚未同步，无法操作')
-    return
+  if (cards.some((c) => s.usedTrumpIds.includes(c.id))) {
+    game.pushMessage("error", "选牌中有已用于亮主的牌");
+    return;
   }
-  const { jokers, others } = splitJokers(props.selectedIds)
-
-  if (jokers.length !== 1) {
-    game.pushMessage('error', '定主：请选择且仅选择 1 张王')
-    return
-  }
-  if (others.length !== 1 && others.length !== 2) {
-    game.pushMessage('error', '定主：还需选择 1~2 张级牌')
-    return
-  }
-
-  game.sendEvent('game.call_trump', {
-    jokerId: jokers[0].id,
-    levelIds: others.map((c) => c.id),
-  })
-}
-
-function changeTrump() {
-  if (!canChangeTrumpNow.value) return
-
-  // 形状：1 joker + 2 level
-  if (!v.value?.myHand || v.value.myHand.length === 0) {
-    game.pushMessage('error', '手牌尚未同步，无法操作')
-    return
-  }
-  const { jokers, others } = splitJokers(props.selectedIds)
-
-  if (jokers.length !== 1) {
-    game.pushMessage('error', '改主：请选择且仅选择 1 张王')
-    return
-  }
-  if (others.length !== 2) {
-    game.pushMessage('error', '改主：还需选择 2 张级牌')
-    return
-  }
-
-  game.sendEvent('game.change_trump', {
-    jokerId: jokers[0].id,
-    levelIds: others.map((c) => c.id),
-  })
-}
-
-function attackTrump() {
-  if (!canAttackTrumpNow.value) return
-
-  // 形状：2 jokers（不要求顺序；同类校验交给后端）
-  if (!v.value?.myHand || v.value.myHand.length === 0) {
-    game.pushMessage('error', '手牌尚未同步，无法操作')
-    return
-  }
-  const { jokers, others } = splitJokers(props.selectedIds)
-
-  if (others.length !== 0) {
-    game.pushMessage('error', '攻主：只能选择王牌（2 张）')
-    return
-  }
-  if (jokers.length !== 2) {
-    game.pushMessage('error', '攻主：请选择正好 2 张王')
-    return
-  }
-
-  game.sendEvent('game.attack_trump', {
-    jokerIds: jokers.map((c) => c.id),
-  })
-}
-
-
-function putBottom() {
-  if (!canPutBottomNow.value) return
-  if (props.selectedIds.length !== 8) {
-    game.pushMessage('error', '扣底必须选择正好 8 张牌')
-    return
-  }
-  game.sendEvent('game.put_bottom', { discardIds: props.selectedIds })
-}
-
-function callPass() {
-  if (!canCallPassNow.value) return
-  game.sendEvent('game.call_pass', {})
+  game.sendEvent(type, {
+    jokerId: jokers[0]!.id,
+    levelIds: levels.map((c) => c.id),
+  });
 }
 </script>
-
 <template>
-  <div class="panel action-bar">
-    <!-- 出牌阶段 -->
-    <button @click="playCards" :disabled="!canPlayCardsNow">出牌</button>
-
-    <!-- 定主阶段 -->
-    <button @click="callTrump" :disabled="!canCallTrumpNow">定主</button>
-
-    <!-- 扣底阶段 -->
-    <button @click="putBottom" :disabled="!canPutBottomNow">扣底</button>
-
-    <!-- 改主/攻主阶段 -->
-    <button @click="changeTrump" :disabled="!canChangeTrumpNow">改主</button>
-    <button @click="attackTrump" :disabled="!canAttackTrumpNow">攻主</button>
-
-    <!-- 通用 -->
-    <button @click="callPass" :disabled="!canCallPassNow">跳过</button>
-    <button @click="clear">清空选择</button>
-
-    <!-- 下一小局 -->
-    <button @click="nextRound"  :disabled="!canNextRoundNow">下一小局</button>
-
-  </div>
+  <section class="panel action-bar">
+    <div class="controls">
+      <span
+        >已选 <strong>{{ selectedIds.length }}</strong> 张</span
+      >
+      <template v-if="canCall"
+        ><button :disabled="!enabled" @click="send('game.call_trump')">
+          定主</button
+        ><button
+          :disabled="!enabled"
+          @click="game.sendEvent('game.call_pass', {})"
+        >
+          跳过
+        </button></template
+      >
+      <button
+        v-if="canBottom"
+        :disabled="!enabled"
+        @click="send('game.put_bottom')"
+      >
+        扣下 8 张底牌
+      </button>
+      <template v-if="canFight"
+        ><button
+          v-if="!v?.trump.locked"
+          :disabled="!enabled"
+          @click="send('game.change_trump')"
+        >
+          改主</button
+        ><button :disabled="!enabled" @click="send('game.attack_trump')">
+          攻主</button
+        ><button
+          :disabled="!enabled"
+          @click="game.sendEvent('game.call_pass', {})"
+        >
+          跳过
+        </button></template
+      >
+      <button
+        v-if="canPlay"
+        :disabled="!enabled"
+        @click="send('game.play_cards')"
+      >
+        出牌
+      </button>
+      <button v-if="selectedIds.length" @click="emit('clear-selection')">
+        清空选择
+      </button>
+      <button
+        v-if="v?.phase === 'round_settle' && v.mySeat === v.nextStarterSeat"
+        :disabled="!enabled"
+        @click="game.sendEvent('game.start_next_round', {})"
+      >
+        开始下一小局
+      </button>
+      <small
+        v-if="
+          !canCall &&
+          !canBottom &&
+          !canFight &&
+          !canPlay &&
+          v?.phase !== 'round_settle'
+        "
+        >等待其他牌友操作</small
+      >
+      <small v-if="game.pending">正在确认操作…</small>
+    </div>
+    <p v-if="needed" class="selection-help">{{ selectionHelp }}</p>
+    <p v-if="feedback" class="feedback" :class="feedback.level" role="status">
+      {{ feedback.text.replace(/ \([A-Z_]+\)$/, "") }}
+    </p>
+  </section>
 </template>
-
 <style scoped>
 .action-bar {
+  position: sticky;
+  bottom: 8px;
+  z-index: 4;
+  box-shadow: 0 6px 30px #193c2420;
+}
+.controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.feedback {
+  font-size: 13px;
+  color: #52735e;
   margin-top: 8px;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
-
-button {
-  background: rgba(255, 215, 0, 1);
-  margin-right: 6px;
-  margin-bottom: 6px;
-  min-width: 60px;
-  min-height: 44px;
-  border: 1px solid transparent;
-
-  /* 关键：去掉默认交互效果 */
-  outline: none;
-  box-shadow: none;
-  transition: none;
+.feedback.error {
+  color: #b14539;
+  background: #fff0ed;
+  padding: 8px;
+  border-radius: 6px;
 }
-
-/* 覆盖 hover / focus / active */
-button:hover,
-button:focus,
-button:active {
-  background: rgba(255, 215, 0, 1);
-  outline: none;
-  box-shadow: none;
-}
-
-/* 禁用态 */
-button:disabled {
-  opacity: 0.3;
-  cursor: not-allowed;
-}
-button:hover {
-  background: rgba(255, 215, 0, 0.7) !important;
+.selection-help {
+  font-size: 12px;
+  color: #8b661d;
+  margin-top: 6px;
 }
 </style>

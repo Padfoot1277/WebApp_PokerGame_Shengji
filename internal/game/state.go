@@ -5,6 +5,7 @@ import "upgrade-lan/internal/game/rules"
 type Phase string
 
 const (
+	PhaseGameOver    Phase = "game_over"
 	PhaseLobby       Phase = "lobby"
 	PhaseDealing     Phase = "dealing"
 	PhaseCallTrump   Phase = "call_trump"
@@ -15,6 +16,7 @@ const (
 )
 
 type SeatState struct {
+	Name   string `json:"name"`
 	UID    string `json:"uid"`
 	Ready  bool   `json:"ready"`
 	Online bool   `json:"online"`
@@ -97,6 +99,12 @@ type Record struct {
 }
 
 type GameState struct {
+	FightTurnSeat int          `json:"fightTurnSeat"`
+	UsedTrumpIDs  map[int]bool `json:"-"`
+	SurrenderMask uint8        `json:"-"`
+	Surrendered   bool         `json:"surrendered"`
+	WinnerTeam    int          `json:"winnerTeam"`
+
 	RoomID  string `json:"roomId"`
 	Phase   Phase  `json:"phase"`
 	Version int64  `json:"version"`
@@ -135,7 +143,7 @@ type GameState struct {
 	BottomRevealed bool         `json:"bottomRevealed"`         // 是否已经抠/公开底牌（用于断线重连）
 	BottomReveal   []rules.Card `json:"bottomReveal,omitempty"` // 公开给前端展示（可选）
 	BottomPoints   int          `json:"bottomPoints"`           // 底牌分（不含倍率）
-	BottomMul      int          `json:"bottomMul"`              // 倍率（2/4/1）
+	BottomMul      int          `json:"bottomMul"`              // 倍率（单1、对2、拖4）
 	BottomAward    int          `json:"bottomAward"`            // 实际加到 st.Points 的分（含倍率，且只在打家得分时生效）
 
 	// ---- 小局结算展示 ----

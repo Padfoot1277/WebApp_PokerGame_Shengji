@@ -6,6 +6,9 @@ import "fmt"
 // 红主：红大王 + 红色级牌（♥/♦）
 // 黑主：黑小王 + 黑色级牌（♠/♣）
 func ValidateCallTrump(teamLevel Rank, joker Card, levelCards []Card) (trumpSuit Suit, locked bool, err error) {
+	if len(levelCards) < 1 || len(levelCards) > 2 || (!IsBigJoker(joker) && !IsSmallJoker(joker)) {
+		return "", false, fmt.Errorf("定主需要一张王和一至两张级牌")
+	}
 	// 级牌必须是本队级牌
 	for _, lc := range levelCards {
 		if !isNormal(lc) || lc.Rank != teamLevel {

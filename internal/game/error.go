@@ -33,24 +33,23 @@ func (e *AppError) WithInfo(info string) *AppError {
 	if e == nil {
 		return nil
 	}
-	e.Info = info
-	return e
+	cp := *e
+	cp.Info = info
+	return &cp
 }
 
 func (e *AppError) WithInfof(format string, a ...any) *AppError {
 	if e == nil {
 		return nil
 	}
-	e.Info = fmt.Sprintf(format, a...)
-	return e
+	return e.WithInfo(fmt.Sprintf(format, a...))
 }
 
 func (e *AppError) ClearInfo() *AppError {
 	if e == nil {
 		return nil
 	}
-	e.Info = ""
-	return e
+	return e.WithInfo("")
 }
 
 // 以下 err 变量会在各处使用，要注意 Info 的更改/清空（使用 WithInfo / ClearInfo），否则会出现错误的提示信息

@@ -37,7 +37,7 @@ func (h *Hub) Run() {
 					"type":    "notice",
 					"message": "该UID在其他位置登录，你已被顶下线",
 				})
-				_ = old.Close()
+				old.Replace()
 			}
 			h.byUID[c.uid] = c
 

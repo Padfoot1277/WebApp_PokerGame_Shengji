@@ -6,7 +6,26 @@ import (
 )
 
 func ParseClientEvent(typ string, raw json.RawMessage) (game.ClientEventType, any, *game.AppError) {
+	required := map[string][]string{
+		string(game.EvSit): {"seat"}, string(game.EvCallTrump): {"jokerId", "levelIds"}, string(game.EvChangeTrump): {"jokerId", "levelIds"}, string(game.EvAttackTrump): {"jokerIds"}, string(game.EvPutBottom): {"discardIds"}, string(game.EvPlayCards): {"cardIds"},
+	}
+	if keys, ok := required[typ]; ok {
+		var object map[string]json.RawMessage
+		if json.Unmarshal(raw, &object) != nil || object == nil {
+			return "", nil, game.ErrInvalidPayload
+		}
+		for _, key := range keys {
+			value, ok := object[key]
+			if !ok || string(value) == "null" {
+				return "", nil, game.ErrInvalidPayload.WithInfo("缺少请求字段 " + key)
+			}
+		}
+	}
 	switch typ {
+	case string(game.EvSurrender):
+		return game.EvSurrender, struct{}{}, nil
+	case string(game.EvCancelSurrender):
+		return game.EvCancelSurrender, struct{}{}, nil
 	case string(game.EvSit):
 		var p game.SitPayload
 		if err := json.Unmarshal(raw, &p); err != nil {

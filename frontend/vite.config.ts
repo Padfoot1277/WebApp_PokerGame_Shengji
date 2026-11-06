@@ -1,10 +1,11 @@
-import { defineConfig } from 'vite'
-import vue from '@vitejs/plugin-vue'
+import { defineConfig } from "vite";
+import vue from "@vitejs/plugin-vue";
 
 export default defineConfig({
   plugins: [vue()],
   server: {
-    host: '0.0.0.0',   // ⭐ 必须
+    host: "0.0.0.0", // ⭐ 必须
     port: 5173,
+    proxy: { "/ws": { target: "ws://127.0.0.1:8080", ws: true } },
   },
-})
+});

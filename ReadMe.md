@@ -1,126 +1,67 @@
-本项目是一个基于 Go + WebSocket + Vue 实现的局域网多人在线“升级”游戏。
+# 升级（孝汾规则）
 
-游戏界面展示
+四人固定对家、两副牌的在线扑克游戏。后端使用 Go，前端使用 Vue 3、TypeScript、Pinia 和 Vite。规则由服务端判定，客户端只接收自己的手牌。
 
-![移动端/PC端界面](images/2.png)
+## 本地运行
 
+环境：Go 1.24+、Node.js 22.12+。
 
-## 文件目录
+```powershell
+npm --prefix frontend ci
+npm --prefix frontend run build
+go run ./cmd/server
+```
 
-/前后端启动
+浏览器访问 http://localhost:8080 。创建房间后分享房间码；四名玩家各自入座、准备后开局。同一局域网的设备使用服务器的 IP 地址访问 8080 端口。
 
-    /cmd/server/main.go            后端入口，启动命令：go run ./cmd/server
-    /frontend/src/...              前端代码，启动命令：npm --prefix .\frontend run dev
+开发模式另开终端运行 `npm --prefix frontend run dev`，访问 5173 端口；Vite 自动代理 `/ws` 到 8080，无需修改源码中的 IP。
 
+## 验证
 
-/internal/ws/                  WebSocket 连接层
+```powershell
+go test ./...
+go vet ./...
+npm --prefix frontend run build
+npm --prefix frontend test
+npm --prefix frontend run format:check
+```
 
-      hub.go           # 全局ws hub：连接管理、广播
-      conn.go          # 单连接读写、心跳、鉴权
+GitHub Actions 还会在 Linux 上运行 `go test -race ./...`。本机未启用 CGO 时无法执行竞态检测。
 
-/internal/room/                  房间管理（非规则）
+## 功能与协议
 
-      room.go          # 房间生命周期、玩家入座准备
-      router.go        # 事件路由：把客户端event送进game reducer
-      manager.go       # 房间管理器
+- 显示东、南、西、北席，东西与南北分别为一队。牌桌使用我、上家、下家、对家。
+- 支持定主、锁主、按序攻改、硬主、对子、拖拉机、甩牌、跟牌校验、记牌、抠底、升级与升 A 获胜。
+- 同队两人确认弃局后，按当时已结算的打家得分立即结算，不额外抠底。第一人可在第二人确认前撤回。
+- 昵称与身份分离。服务端签发会话凭据，浏览器标签页使用 sessionStorage 保存；刷新和网络重连可恢复原座位。新标签页可作为另一位玩家。
+- 请求包含 `type`、`payload`、`reqId`；响应 `ack` 包含 `reqId`、`ok`、`code`、`message`、`version`。每个玩家每房间保留最近 128 条回执，重复请求返回原回执与最新快照。
+- 客户端一次只提交一个待确认请求；自动重连时使用原编号重试，避免重复执行。
+- 有限消息大小、请求频率、每房间连接数、发送背压处理及同源检查。长期无人连接的房间会从内存回收。
 
-/internal/game/
+## 配置与保存
 
-      rules/
-          card.go        # 卡牌基本数据结构
-          compare.go     # 牌型比较
-          deck.go        # 发牌、洗牌
-          follow.go      # 跟牌约束
-          pattern.go     # 牌域识别（主副牌）、牌型识别（单/对/拖拉机/甩牌）
-          score.go       # 分牌计算、末墩抠底倍数、结算升级
-          sort.go        # 手牌排序
-          trump.go       # 定主/改主/攻主/硬主规则
-      error.go         # 错误处理
-      events.go        # 客户端、服务端事件
-      reducer.go       # 处理核心 (state, event) -> newState + outputs
-      snapshot.go      # 客户端消息
-      state.go         # 游戏状态
-      utils.go         # 工具函数
+| 环境变量 | 默认值 | 用途 |
+| --- | --- | --- |
+| `ADDR` | `:8080` | 服务监听地址 |
+| `WEB_DIR` | `./frontend/dist` | 静态前端目录 |
+| `DATA_DIR` | `./data` | 牌局、回执、会话签名密钥和诊断日志 |
+| `SESSION_SECRET` | 自动保存的随机密钥 | 可选，至少 32 字符；固定后可跨重启验证会话 |
+| `ALLOWED_ORIGINS` | 仅同源 | 额外允许的完整 Origin，以逗号分隔 |
+| `VITE_WS_URL` | 当前站点 `/ws` | 构建时可指定独立 WebSocket 地址 |
 
-## 环境说明
-    go   1.24       （go version）
-    npm  10.9.0     （npm -v）
-    node v22.12.0   （node -v）
+牌局使用临时文件写入、同步后原子替换；保存失败的请求不会提交到房间状态。服务重启后按房间码加载保存状态，所有玩家初始离线并取消准备，重新连接恢复。
 
-## 使用说明:
-    后端：
-      拉取依赖 go mod tidy
-      启动后端 go run ./cmd/server
-      此时后端默认监听地址：http://localhost:8080
-    
-    前端：
-      进入目录 cd frontend
-      安装依赖 npm install
-      修改后端地址 将frontend/src/components/ConnectionPanel.vue中的wsBase替换为当前服务器IP
-      启动前端 npm --prefix .\frontend run dev
+`data` 含完整手牌、底牌、身份签名密钥和操作日志，属于服务器私有数据，不对外提供静态访问，也不提交到 Git。请使用同一个数据目录与密钥重启服务。当前文件保存面向单进程部署，不支持多个服务实例同时写同一目录。诊断日志尚未实现完整可视化复盘及保留周期管理。
 
-    用户：
-      与服务器连接同一局域网
-      访问网址 http://{IP地址}:5173/ (通过ipconfig查询服务器IP地址)
+公网部署需要另行配置 HTTPS/WSS 和反向代理。当前交付为 Web 版；微信登录、微信端客户端及部署联调属于后续迁移工作。
 
-## 游戏规则
+## 项目结构
 
-本游戏按照孝汾地区的民间升级规则开发，详见同级目录下的[简版规则.md](简版规则.md)
+- `cmd/server`：HTTP 与 WebSocket 服务入口。
+- `internal/ws`：签名身份、连接、读写循环、连接接管。
+- `internal/room`：串行房间事件循环、协议解析、回执去重、本地保存。
+- `internal/game`：阶段状态机、命令边界校验、弃局、结算、私有快照。
+- `internal/game/rules`：牌型、比较、跟牌、洗牌与分值。
+- `frontend/src`：Vue 界面、强类型协议、连接状态和交互。
 
-与游戏开发相关的状态机设计、游戏阶段流转模型，详见同级目录下的[阶段模型.md](阶段模型.md)
-
-## 后续TODO
-
-连接与回合管理脆弱（panic风险）
-
-    Room 生命周期没有闭环
-    GameState 可能被并发访问
-    WS 断开没有做状态迁移
-    回合切换可能在非法 phase 下执行
-
-    缺少：
-    断线重连机制
-    Room 的状态机保护
-    每个入口必须校验 phase
-    panic recover 保护层
-    GameState 不允许裸露访问
-    禁止外部模块直接修改 state
-    所有写操作走 Engine
-
-
-WS 幂等性（reqId + ack）
-
-    目前如果：客户端重复发送、网络重传、页面刷新、会出现：重复出牌、重复定主、状态错乱
-    保存最近 N 个 reqId、已处理直接返回结果、返回 ackReqId
-    Snapshot的一致性保证
-
-防御性编程缺失
-
-    slice 越界
-    nil map
-    非法 seatId
-    非法 card id
-    phase 不匹配
-    
-    必须：
-    所有入口校验
-    所有 index 前检查
-    所有 map 初始化明确
-
-    还有一些冗余的防御性编程校验，没有明确划分区域
-
-Engine 封装
-  
-    问题：Room 依赖 Game、Game 又暴露内部 State、规则 scattered
-    需要：Room→Engine→GameState→Rules，外部不允许直接改 state
-    Engine 设计目标，只暴露：Query 接口（只读）+ Command 接口（写）
-
-其余问题
-
-    外置配置项
-    将一些函数改为类方法
-    错误码标准化：进一步区分业务错误、非法请求、系统错误
-    遗漏的规则项：同一张王牌和级牌不可多次参与该局的定主、改主、攻主
-    缺少系统级后台日志，如replay log。目前debug主要靠在前端game.ts中打印msg
-    缺少单元测试
-    前端结构混乱
+规则见 [简版规则.md](简版规则.md)，状态流转见 [阶段模型.md](阶段模型.md)，本轮实施与验证记录见 [开发记录.md](开发记录.md)。

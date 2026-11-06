@@ -17,7 +17,7 @@ const (
 // rankValue 返回“同 SuitClass 内”单张牌的强度（越大越强）
 func rankValue(c Card, t Trump) int {
 	if !isTrumpCard(c, t) {
-		return c.Rank.BaseValue()
+		return ordinaryRank(c, t)
 	}
 	if IsBigJoker(c) {
 		return RVBigJoker
@@ -34,7 +34,7 @@ func rankValue(c Card, t Trump) int {
 		}
 		return RVSubLevel
 	}
-	return RVTrumpBase + c.Rank.BaseValue()
+	return RVTrumpBase + ordinaryRank(c, t)
 }
 
 // compareTwoCards 比较两张牌大小（使用时注意先后手顺序对于相等牌力的影响）
@@ -84,32 +84,70 @@ func SortBlocksByRank(blocks []Block) error {
 // CompareForTrickWin 根据bigBlocks里的每一个牌组，找selected中最大的同牌型牌组进行比较；
 // 一旦跟牌无法大过当前big方，就返回win=false；如果大于，删除这个牌组，继续下一个牌组的查找和比较；如果全部都大于，则返回win=true。
 func CompareForTrickWin(bigBlocks [][]Block, selected []Card, t Trump) (bool, error) {
-	// 剩余可用牌池（会被逐步删除）
-	remaining := append([]Card(nil), selected...)
-	sc := selected[0].SuitClass
-	for _, blocks := range bigBlocks {
-		for i := 0; i < len(blocks); i++ {
-			big := blocks[i]
-			// 在剩余牌池里找“同牌型”的候选牌组，按牌力从大到小返回
-			cands, err := FindBlocksInHand(remaining, t, sc, big.Type, big.TractorLen)
+	_, win, err := WinningBlocks(bigBlocks, selected, t)
+	return win, err
+}
+
+// Preserve the lead structure when assigning a winning move. Adjacent pairs in
+// a follower's hand must not change two required pairs into a tractor for the next player.
+func WinningBlocks(bigBlocks [][]Block, selected []Card, t Trump) ([][]Block, bool, error) {
+	if len(selected) == 0 {
+		return nil, false, nil
+	}
+	sc, ok := ComputeSuitClassAllSame(selected)
+	if !ok {
+		return nil, false, nil
+	}
+	shape := []Block{}
+	for _, group := range bigBlocks {
+		shape = append(shape, group...)
+	}
+	need := 0
+	for _, block := range shape {
+		need += len(block.Cards)
+	}
+	if need != len(selected) {
+		return nil, false, nil
+	}
+	var assign func(int, []Card) ([]Block, bool, error)
+	assign = func(index int, remaining []Card) ([]Block, bool, error) {
+		if index == len(shape) {
+			return []Block{}, true, nil
+		}
+		target := shape[index]
+		candidates, err := FindBlocksInHand(remaining, t, sc, target.Type, target.TractorLen)
+		if err != nil {
+			return nil, false, err
+		}
+		for _, candidate := range candidates {
+			cmp, err := CompareTwoBlocks(target, candidate)
 			if err != nil {
-				return false, err
-			}
-			if len(cands) == 0 {
-				return false, nil
-			}
-			best := cands[0]
-			cmp, err := CompareTwoBlocks(big, best)
-			if err != nil {
-				return false, err
+				return nil, false, err
 			}
 			if cmp >= 0 {
-				return false, nil
+				continue
 			}
-			remaining = deleteCards(remaining, best.Cards)
+			rest, ok, err := assign(index+1, deleteCards(remaining, candidate.Cards))
+			if err != nil {
+				return nil, false, err
+			}
+			if ok {
+				return append([]Block{candidate}, rest...), true, nil
+			}
 		}
+		return nil, false, nil
 	}
-	return true, nil
+	matched, win, err := assign(0, selected)
+	if !win || err != nil {
+		return nil, false, err
+	}
+	out := make([][]Block, len(bigBlocks))
+	offset := 0
+	for i, group := range bigBlocks {
+		out[i] = append([]Block(nil), matched[offset:offset+len(group)]...)
+		offset += len(group)
+	}
+	return out, true, nil
 }
 
 func deleteCards(hand, delete []Card) []Card {
@@ -128,4 +166,12 @@ func deleteCards(hand, delete []Card) []Card {
 		keep = append(keep, c)
 	}
 	return keep
+}
+
+func ordinaryRank(c Card, t Trump) int {
+	v := c.Rank.BaseValue()
+	if c.Rank != t.LevelRank && v > t.LevelRank.BaseValue() {
+		v--
+	}
+	return v
 }

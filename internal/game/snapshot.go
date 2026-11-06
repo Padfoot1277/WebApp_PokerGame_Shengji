@@ -8,6 +8,12 @@ type Snapshot struct {
 }
 
 type ViewState struct {
+	FightTurnSeat  int     `json:"fightTurnSeat"`
+	SurrenderVotes [4]bool `json:"surrenderVotes"`
+	Surrendered    bool    `json:"surrendered"`
+	WinnerTeam     int     `json:"winnerTeam"`
+	UsedTrumpIDs   []int   `json:"usedTrumpIds"`
+
 	RoomID  string      `json:"roomId"`
 	Phase   Phase       `json:"phase"`
 	Version int64       `json:"version"`
@@ -51,6 +57,7 @@ type ViewState struct {
 }
 
 type SeatView struct {
+	Name      string `json:"name"`
 	UID       string `json:"uid"`
 	Ready     bool   `json:"ready"`
 	Online    bool   `json:"online"`
@@ -88,6 +95,7 @@ func MakeView(st GameState, uid string) ViewState {
 	for i := 0; i < 4; i++ {
 		seats[i] = SeatView{
 			UID:       st.Seats[i].UID,
+			Name:      st.Seats[i].Name,
 			Ready:     st.Seats[i].Ready,
 			Online:    st.Seats[i].Online,
 			Team:      st.Seats[i].Team,
@@ -116,7 +124,14 @@ func MakeView(st GameState, uid string) ViewState {
 		bottomReveal = append([]rules.Card(nil), st.BottomReveal...)
 	}
 
+	used := []int{}
+	for _, c := range st.Seats[max(0, mySeat)].Hand {
+		if mySeat >= 0 && st.UsedTrumpIDs[c.ID] {
+			used = append(used, c.ID)
+		}
+	}
 	return ViewState{
+		FightTurnSeat: st.FightTurnSeat, SurrenderVotes: maskToBool4(st.SurrenderMask), Surrendered: st.Surrendered, WinnerTeam: st.WinnerTeam, UsedTrumpIDs: used,
 		RoomID:  st.RoomID,
 		Phase:   st.Phase,
 		Version: st.Version,

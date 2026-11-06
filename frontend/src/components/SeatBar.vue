@@ -1,259 +1,183 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useGameStore } from '../store/game'
-import TrickPlayView from './TrickPlayView.vue'
-
-const game = useGameStore()
-const v = computed(() => game.view)
-
-const seats = computed(() => v.value?.seats ?? [])
-const seatOrder = [0, 1, 3, 2]
-
-const orderedSeats = computed(() =>
-    seatOrder.map((idx) => ({ idx, s: seats.value[idx] }))
-)
-
-const isPlayPhase = computed(() => v.value?.phase === 'play_trick')
-
-const trickToShow = computed(() => {
-  if (!isPlayPhase.value) return null
-
-  const t = v.value?.trick
-  if (!t) return null
-
-  // 已结算：展示上一墩
-  if (t.resolved && t.lastMoves) {
-    return {
-      ...t,
-      playedMoves: t.lastMoves,
-    }
+import { ref, computed, watch } from "vue";
+import { useGameStore } from "../store/game";
+import { relativeSeat, seatName, teamName } from "../utils/seat";
+import TrickPlayView from "./TrickPlayView.vue";
+const game = useGameStore();
+const previous = ref(false);
+const v = computed(() => game.view);
+watch(
+  () => game.view?.roundIndex,
+  () => {
+    previous.value = false;
+  },
+);
+const positions = [2, 3, 1, 0];
+const order = computed(() =>
+  positions.map(
+    (offset) => (Math.max(0, v.value?.mySeat ?? 0) + offset + 4) % 4,
+  ),
+);
+const turn = computed(() => {
+  const s = v.value;
+  if (!s) return -1;
+  switch (s.phase) {
+    case "call_trump":
+      return s.callTurnSeat;
+    case "bottom":
+      return s.bottomOwnerSeat;
+    case "trump_fight":
+      return s.fightTurnSeat;
+    case "play_trick":
+      return s.trick.turnSeat;
+    default:
+      return -1;
   }
-
-  // 未结算：展示当前墩
-  return t
-})
-const liveTrick = computed(() => {
-  if (!isPlayPhase.value) return null
-  return v.value?.trick
-})
-
-const biggerSeat = computed(() => {
-  if (!isPlayPhase.value) return null
-  return v.value?.trick
-})
-
-function seatStatus(idx: number): string {
-  const view = v.value
-  if (!view) return ''
-
-  const s = view.seats[idx]
-  if (!s.uid) return '空位'
-  if (!s.online) return '离线'
-  if (view.phase === 'lobby') return s.ready ? '已准备' : '未准备'
-
-  // call_trump：轮到谁/谁已跳过
-  if (view.phase === 'call_trump') {
-    if (view.callPassedSeats[idx]) return '已跳过'
-    if (idx === view.callTurnSeat && view.callMode === 'ordered') return '轮到定主'
-    if (view.callMode === 'race') return '抢主中'
-    return '等待定主'
-  }
-
-  // bottom：坐家扣底
-  if (view.phase === 'bottom') {
-    return idx === view.bottomOwnerSeat ? '扣底中' : '等待扣底'
-  }
-
-  // trump_fight：非坐家改/攻主窗口
-  if (view.phase === 'trump_fight') {
-    if (idx === view.bottomOwnerSeat) return '等待他人改主/攻主'
-    if (view.fightPassedSeats[idx]) return '已跳过'
-    return '改主/攻主思考中'
-  }
-
-  // play_trick / follow_trick：出牌/跟牌
-  // 状态判断应基于“当前真实 trick”（而非 displayTrick），避免上一墩冻结时误导“轮到谁”
-  if (view.phase === 'play_trick' || view.phase === 'follow_trick') {
-    const pm = view.trick?.playedMoves?.[idx]
-    const hasPlayed = !!pm
-    if (hasPlayed) return idx === view.trick.leaderSeat ? '已先手出牌' : '已出牌'
-    if (idx === view.trick.turnSeat) return '轮到出牌'
-    return '等待出牌'
-  }
-
-  return ''
-}
-function isActiveSeat(idx: number): boolean {
-  const view = v.value
-  if (!view) return false
-
-  if (view.phase === 'call_trump') {
-    if (view.callMode === 'ordered') return idx === view.callTurnSeat
-    // race：没有“轮到谁”，你可选择不高亮，或高亮所有未pass且仍可抢的人
-    return view.trump.callerSeat === -1 && !view.callPassedSeats[idx]
-  }
-
-  if (view.phase === 'bottom') {
-    return idx === view.bottomOwnerSeat
-  }
-
-  if (view.phase === 'trump_fight') {
-    if (idx === view.bottomOwnerSeat) return false
-    return !view.fightPassedSeats[idx]
-  }
-
-  if (view.phase === 'play_trick' || view.phase === 'follow_trick') {
-    return idx === view.trick?.turnSeat
-  }
-
-  return false
-}
-
-function seatLabel(idx: number): string {
-  const map = ['⓪', '①', '②', '③']
-  return map[idx] ?? String(idx)
-}
-
+});
+const moves = computed(() => {
+  const t = v.value?.trick;
+  return previous.value || t?.resolved ? t?.lastMoves : t?.playedMoves;
+});
 </script>
-
 <template>
-  <div class="seat-bar">
-    <div
-        v-for="item in orderedSeats"
-        :key="item.idx"
-        class="seat"
-        :class="{
-    me: item.idx === v?.mySeat,
-    active: isActiveSeat(item.idx),
-  }"
-    >
-      <div class="seat-head">
-        <strong>
-          {{ seatLabel(item.idx) }}{{' ' + item.s.uid}}
-          <span v-if="item.idx === v?.mySeat">{{ '(我)' }}</span>
-        </strong>
-      </div>
-
-      <div class="status">
-        <span class="badge">{{ seatStatus(item.idx) }}</span>
-      </div>
-
-      <!-- ✅ 右上角浮层 -->
-      <div class="corner-badges">
-        <span v-if="item.idx === trickToShow?.leaderSeat" class="badge leader" title="先手">🚩</span>
-        <span v-if="item.idx === liveTrick?.turnSeat" class="badge turn" title="轮到">👈</span>
-        <span v-if="item.idx === biggerSeat?.biggerSeat " class="badge bigger" title="当前最大">🔥</span> <!-- 可供替换的emoji 👍⭐️☀️🌟🔥⚡️-->
-      </div>
-      <div class="play-area">
-        <TrickPlayView
-            :move="trickToShow?.playedMoves?.[item.idx] ?? null"
-        />
-      </div>
-
+  <section v-if="v" class="panel">
+    <div class="table-heading">
+      <strong>{{
+        previous
+          ? "上一墩 · 历史出牌"
+          : ["round_settle", "game_over"].includes(v.phase)
+            ? "末墩出牌 · 本局已结束"
+            : v.trick.resolved
+              ? "上一墩结果 · 等待下一墩先手"
+              : "本墩牌桌"
+      }}</strong
+      ><label><input v-model="previous" type="checkbox" /> 查看上一墩</label>
     </div>
-
-  </div>
+    <div class="table">
+      <article
+        v-for="(index, position) in order"
+        :key="index"
+        class="seat"
+        :class="[
+          'position-' + position,
+          { active: index === turn, mine: index === v.mySeat },
+        ]"
+      >
+        <header>
+          <strong>{{ relativeSeat(index, v.mySeat) }}</strong>
+          <small>{{
+            v.mySeat < 0
+              ? teamName(index % 2)
+              : `${seatName(index)} · ${index % 2 === v.mySeat % 2 ? "我方" : "对方"}`
+          }}</small>
+        </header>
+        <div>
+          {{ v.seats[index]?.name || "空位" }}
+          <small>{{ v.seats[index]?.online ? "" : "· 离线" }}</small>
+        </div>
+        <div class="seat-meta">
+          <span>{{ v.seats[index]?.handCount }} 张</span
+          ><span v-if="index === turn">轮到操作</span
+          ><span v-if="v.phase !== 'call_trump' && index === v.starterSeat"
+            >坐家</span
+          ><span v-if="v.phase === 'play_trick' && index === v.trick.biggerSeat"
+            >当前最大</span
+          ><span v-if="v.surrenderVotes[index]">申请弃局</span>
+        </div>
+        <TrickPlayView
+          v-if="['play_trick', 'round_settle', 'game_over'].includes(v.phase)"
+          :move="moves?.[index] ?? null"
+        />
+      </article>
+    </div>
+  </section>
 </template>
-
 <style scoped>
-.seat-bar {
+.table-heading {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+.table {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
 }
-
 .seat {
-  background: #c7edcc;
+  min-width: 0;
+  background: #edf5ef;
   padding: 8px;
-  border-radius: var(--radius);
+  border: 2px solid transparent;
+  border-radius: 12px;
 }
-
-.seat-head {
-  margin-bottom: 4px;
+.position-0,
+.position-3 {
+  grid-column: 1/-1;
+  width: 90%;
+  justify-self: center;
 }
-
-.status { margin-top: 4px; }
-.badge {
-  display: inline-block;
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: #0abc24;
-  font-size: 15px;
-  color: white;
+@keyframes turn-in {
+  from {
+    box-shadow: 0 0 0 5px #b37e1430;
+  }
+  to {
+    box-shadow: 0 0 0 0 transparent;
+  }
 }
-
-.seat.me {
-  background: rgba(77, 163, 255, 0.35);
+.active {
+  animation: turn-in 0.4s ease-out;
+  border-color: #b37e14;
+  background: #fff8dc;
 }
-.seat.me .badge {
-  background: rgba(77, 163, 255, 0.85);
-  color: white;
+.mine {
+  box-shadow: inset 0 -3px #21846b;
 }
-
-.seat.active {
-  box-shadow: 0 0 0 4px #f5d000 inset; /* 黄框 */
-}
-
-.play-area {
-  border-radius: 8px;
-  background: #c7edcc;
-}
-
-.seat.me .play-area {
-  background: #bfddfd;
-}
-.seat.me .trick-mini {
-  background: #bfddfd;
-}
-
-.seat {
-  position: relative;
-}
-
-.corner-badges {
-  position: absolute;
-  top: 6px;
-  right: 6px;
+.seat-meta {
   display: flex;
   gap: 8px;
-  z-index: 3;
-  pointer-events: none; /* 不挡点击 */
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #466557;
+  margin-top: 8px;
 }
-
-/* 每一个角标的外观（这里调大） */
-.corner-badges .badge {
-  width: 30px;
-  height: 30px;
-  border-radius: 8px;
-
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-
-  font-size: 18px;
-  line-height: 1;
-
-  background: #ffffff;
-  border: 2px solid #444;
+small {
+  color: #65796f;
 }
-
-/* 轮到 / 先手：用边框强调 */
-.corner-badges .badge.turn {
-  background: white;
-  border-color: #f5d000;
+header {
+  margin-bottom: 6px;
 }
-.corner-badges .badge.leader {
-  background: white;
-  border-color: pink;
+header {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  flex-wrap: wrap;
 }
-
-.corner-badges .badge.bigger {
-  background: white;
-  border-color: rgba(255, 69, 0, 0.5);
+.seat-meta {
+  margin-top: 4px;
+  gap: 6px;
 }
-
-.seat-head strong {
-  font-size: 20px;
+.table-heading {
+  gap: 8px;
+  flex-wrap: wrap;
 }
-
+.table-heading label {
+  font-size: 12px;
+}
+@media (max-width: 480px) {
+  .position-0,
+  .position-3 {
+    grid-column: auto;
+    width: 100%;
+  }
+  .seat {
+    padding: 6px;
+  }
+  .seat header small {
+    font-size: 10px;
+  }
+  .seat-meta {
+    font-size: 10px;
+  }
+}
 </style>

@@ -25,8 +25,18 @@ func (m *Manager) getOrCreate(roomID string) *Room {
 	if r, ok := m.rooms[roomID]; ok {
 		return r
 	}
+	if len(m.rooms) >= 256 {
+		return nil
+	}
 	r := NewRoom(roomID)
 	m.rooms[roomID] = r
+	r.retire = func() {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+		if m.rooms[roomID] == r {
+			delete(m.rooms, roomID)
+		}
+	}
 	go r.Run()
 	return r
 }
@@ -37,6 +47,10 @@ func (m *Manager) getOrCreate(roomID string) *Room {
 
 func (m *Manager) OnConnect(c transport.Client) {
 	r := m.getOrCreate(c.RoomID())
+	if r == nil {
+		_ = c.Close()
+		return
+	}
 	r.Join(c)
 }
 
@@ -49,7 +63,11 @@ func (m *Manager) OnDisconnect(c transport.Client) {
 	}
 }
 
-func (m *Manager) OnMessage(c transport.Client, typ string, payload json.RawMessage) {
-	r := m.getOrCreate(c.RoomID())
-	r.Route(c, typ, payload)
+func (m *Manager) OnMessage(c transport.Client, typ string, payload json.RawMessage, reqID string) {
+	m.mu.Lock()
+	r := m.rooms[c.RoomID()]
+	m.mu.Unlock()
+	if r != nil {
+		r.Route(c, typ, payload, reqID)
+	}
 }
