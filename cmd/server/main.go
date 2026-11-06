@@ -21,6 +21,10 @@ func main() {
 		ws.ServeWS(hub, rm, w, r)
 	})
 
+	http.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"service":"shengji","status":"ok"}`))
+	})
 	http.Handle("/", http.FileServer(http.Dir(env("WEB_DIR", "./frontend/dist"))))
 
 	addr := env("ADDR", ":8080")

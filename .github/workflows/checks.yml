@@ -19,3 +19,8 @@ jobs:
       - run: npm --prefix frontend run format:check
       - run: npm --prefix frontend test
       - run: npm --prefix frontend run build
+
+      - run: npm --prefix minigame ci
+      - run: npm --prefix minigame run check
+      - run: npm --prefix minigame run build
+      - run: npm --prefix minigame test

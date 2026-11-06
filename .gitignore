@@ -7,3 +7,7 @@ frontend/*.tsbuildinfo
 
 data/
 internal/*/data/
+
+minigame/node_modules/
+minigame/dist/
+minigame/project.private.config.json
