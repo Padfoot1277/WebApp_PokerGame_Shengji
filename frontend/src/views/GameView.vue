@@ -2,6 +2,7 @@
 import { ref, onMounted } from "vue";
 import GameStatusBar from "../components/GameStatusBar.vue";
 import RoundStatusBar from "../components/RoundStatusBar.vue";
+import FloatingFeedback from "../components/FloatingFeedback.vue";
 import SeatBar from "../components/SeatBar.vue";
 import ActionBar from "../components/ActionBar.vue";
 import HandArea from "../components/HandArea.vue";
@@ -22,6 +23,7 @@ function clearSelection() {
 
 <template>
   <div class="view-container">
+    <FloatingFeedback />
     <div class="game-summary"><GameStatusBar /><RoundStatusBar /></div>
     <TurnGuide />
     <div class="play-workspace">

@@ -1,3 +1,4 @@
+import { unavailableCard, floatingFeedback } from "../../frontend/src/utils/play-feedback";
 import { showingLast, moveTag } from "../../frontend/src/utils/table";
 import { GameConnection } from "./connection";
 import { guide, relative, seatName, seatRole, teamName, turn } from "./model";
@@ -76,6 +77,10 @@ audio.setEnabled(preferences.sound);
 const motion = new Motion(() => draw());
 motion.setEnabled(!preferences.reducedMotion);
 let visible = true;
+let floatLines: string[] = [];
+let floatUntil = 0;
+let floatTimer: ReturnType<typeof setTimeout> | undefined;
+let floatBaseline = true;
 const feedback = new FeedbackTracker();
 let dealtIds: number[] = [];
 let lastVibration = -Infinity;
@@ -149,7 +154,13 @@ const link = new GameConnection(
         !next.trick.lastMoves.some(Boolean)
       )
         previous = false;
+      const floating = floatingFeedback(floatBaseline ? null : view, next);
+      floatBaseline = false;
       view = next;
+      if (floating.length && visible) {
+        floatLines = floating; floatUntil = Date.now() + 2200;
+        clearTimeout(floatTimer); floatTimer = setTimeout(() => { floatLines = []; draw(); }, 2200);
+      }
       applyFeedback(feedback.observe(next));
     } else if (msg.type === "ack") {
       if (!msg.ok) notify(msg.message, "error");
@@ -157,6 +168,7 @@ const link = new GameConnection(
     } else if (msg.type === "notice" || msg.type === "error")
       notify(msg.message, msg.type === "error" ? "error" : "info");
     else if (msg.type === "hello") {
+      floatBaseline = true; floatLines = []; clearTimeout(floatTimer);
       feedback.reset();
       motion.clear();
       nickname = msg.name;
@@ -398,7 +410,7 @@ function copyRoom() {
 }
 function selectPair() {
   if (!view || link.busy || previous) return;
-  const hand = (view.myHand ?? []).flat();
+  const hand = (view.myHand ?? []).flat().filter(c => !unavailableCard(view, c, [...selected]));
   const seed =
     hand.find((c) => selected.has(c.id)) ??
     hand.find((c) =>
@@ -755,6 +767,7 @@ function card(
   interactive = false,
   arrival = 0,
 ) {
+  const disabled = interactive && (previous || link.busy || unavailableCard(view, c, [...selected]));
   const picked = interactive && selected.has(c.id);
   const hitTop = y - (picked ? 9 : 0);
   const selectionLift = interactive
@@ -770,7 +783,7 @@ function card(
     selectionLift +
     arrival -
     (dealIndex >= 0 ? 10 * (1 - easeOut(dealProgress)) : 0);
-  box(x, top, w, h, picked ? "#fff09c" : "#ffffff");
+  box(x, top, w, h, disabled ? "#dedbe2" : picked ? "#fff09c" : "#ffffff");
   if (picked) {
     ctx.strokeStyle = "#6652df";
     ctx.lineWidth = 2;
@@ -788,7 +801,7 @@ function card(
     x + 4,
     top + (h <= 44 ? 9 : 14),
     h <= 44 ? 10 : 18,
-    red ? "#dc4965" : "#30314f",
+    disabled ? "#9a95a1" : red ? "#dc4965" : "#30314f",
     w - 6,
   );
   text(
@@ -796,13 +809,13 @@ function card(
     x + 4,
     top + (h <= 44 ? 27 : 40),
     h <= 44 ? 18 : 28,
-    red ? "#dc4965" : "#30314f",
+    disabled ? "#9a95a1" : red ? "#dc4965" : "#30314f",
     w - 6,
   );
   if (interactive) {
     if (view?.usedTrumpIds.includes(c.id))
       text("亮", x + Math.max(15, w - 13), top + 10, 8, "#805a26", 12);
-    if (!link.busy && !previous)
+    if (!disabled)
       targets.push({
         x,
         y: hitTop,
@@ -1093,7 +1106,9 @@ function draw() {
       const seat = (base + off) % 4;
       const [x, y, w, h] = positions[i]!;
       const player = s.seats[seat]!;
-      box(x!, y!, w!, h!, seat === turn(s) ? "#e6f4b6" : "#ffffff");
+      const shown = showingLast(s, previous) ? s.trick.lastMoves : s.trick.playedMoves;
+      const maximum = !!shown[seat] && seat === (showingLast(s, previous) ? s.trick.winnerSeat : s.trick.biggerSeat);
+      box(x!, y!, w!, h!, maximum ? "#dfceff" : seat === turn(s) ? "#e6f4b6" : "#ffffff");
       if (seat === turn(s)) {
         ctx.strokeStyle = "#f5a14f";
         ctx.lineWidth = 2;
@@ -1430,6 +1445,10 @@ function draw() {
     },
   });
   drawPanel();
+  if (Date.now() < floatUntil && floatLines.length) {
+    box(260, 142, 440, floatLines.length * 30 + 16, "#403569");
+    floatLines.forEach((line, i) => text(line, 278, 166 + i * 30, 18, "#ffffff", 404));
+  }
 }
 function resize() {
   const info = wx.getSystemInfoSync();
@@ -1515,6 +1534,7 @@ wx.onShow((options) => {
   draw();
 });
 wx.onHide(() => {
+  floatLines = []; clearTimeout(floatTimer);
   dragging = false;
   visible = false;
   motion.suspend();

@@ -674,3 +674,15 @@ test("drag sounds are throttled and stable card hit boxes ignore intermediate an
    assert.equal(url.searchParams.get("record"), create ? "1" : "0");
   }
  });
+
+test("public score toast reaches players and spectators even while room menu is open", () => {
+ for (const mySeat of [0,1,2,3,-1]) {
+  const state = { ...snapshot(), mySeat, myHand: mySeat < 0 ? null : snapshot().myHand };
+  const { s, task } = connected({}, state);
+  s.button("菜单");
+  task.message({ type: "snapshot", state: { ...state, version: 2, points: 20 } });
+  assert(s.rendered.some(t => t.label === "打家 +20 分"));
+  s.advance(2300);
+  assert(!s.rendered.some(t => t.label === "打家 +20 分"));
+ }
+});

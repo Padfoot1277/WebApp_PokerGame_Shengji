@@ -13,6 +13,7 @@ type Card = {
 const props = defineProps<{
   card: Card;
   selected: boolean;
+  unavailable?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -20,7 +21,7 @@ const emit = defineEmits<{
 }>();
 
 function onClick(e: MouseEvent) {
-  if (e.detail === 0) emit("toggle", props.card.id);
+  if (!props.unavailable && e.detail === 0) emit("toggle", props.card.id);
 
   // 关键：手动取消 focus
   const target = e.currentTarget as HTMLButtonElement;
@@ -31,7 +32,8 @@ function onClick(e: MouseEvent) {
 <template>
   <button
     class="card"
-    :class="{ selected }"
+    :class="{ selected, unavailable }"
+    :aria-disabled="unavailable"
     :aria-pressed="selected"
     :aria-label="`${card.suit}${card.rank}`"
     @click="onClick"
@@ -131,5 +133,11 @@ function onClick(e: MouseEvent) {
 
 .suit {
   font-size: 14px;
+}
+.card.unavailable {
+  filter: grayscale(1);
+  opacity: 0.42;
+  cursor: default;
+  box-shadow: none;
 }
 </style>

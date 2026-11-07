@@ -79,7 +79,11 @@ const biggest = computed(() =>
         class="seat"
         :class="[
           'position-' + position,
-          { active: !previous && index === turn, mine: index === v.mySeat },
+          {
+            active: !previous && index === turn,
+            mine: index === v.mySeat,
+            biggest: !!moves?.[index] && index === biggest,
+          },
         ]"
       >
         <header>
@@ -145,6 +149,11 @@ const biggest = computed(() =>
   animation: turn-in 0.4s ease-out;
   border-color: #b37e14;
   background: #fff8dc;
+}
+.seat.biggest {
+  background: #e2d3ff;
+  border-color: #9062dd;
+  box-shadow: inset 0 0 0 1px #b38ae8;
 }
 .mine {
   box-shadow: inset 0 -3px #21846b;
