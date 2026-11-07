@@ -56,17 +56,6 @@ h4 {
 p + p {
   margin-top: 8px;
 }
-button.card,
-button.played-card {
-  background: #fff !important;
-  color: #172e23;
-  border: 1px solid #c3cec6;
-}
-button.card.selected {
-  background: #e3d5fc !important;
-  color: #38215c;
-  border: 2px solid #8b6ab0;
-}
 @media (prefers-reduced-motion: reduce) {
   * {
     animation: none !important;

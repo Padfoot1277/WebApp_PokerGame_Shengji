@@ -88,18 +88,18 @@ function onClick(e: MouseEvent) {
 
 /* 选中态 */
 .card.selected {
-  background: #fff0c4;
-  border-color: #d6b96b;
+  background: rgba(177, 235, 193, 0.65);
+  border: 2px solid #20bfd0;
   color: #000;
-  box-shadow: 0 0 6px rgba(214, 185, 107, 0.35);
+  box-shadow: 0 0 6px rgba(32, 191, 208, 0.25);
   transform: translateY(-4px);
 }
 
 /* 桌面 hover 仅加边框高亮 */
 @media (hover: hover) and (pointer: fine) {
-  .card:not(.selected):hover {
-    border-color: #8a80ff;
-    box-shadow: 0 0 4px rgba(138, 128, 255, 0.4);
+  .card:not(.selected):not(.trump):hover {
+    border-color: #20bfd0;
+    box-shadow: 0 0 4px rgba(32, 191, 208, 0.25);
   }
 }
 
@@ -147,7 +147,10 @@ function onClick(e: MouseEvent) {
 .card.selected.unavailable {
   opacity: 1;
 }
-.trump {
-  border: 2px solid #e5c969 !important;
+.card.trump {
+  border: 2px solid #ffe033;
+}
+.card.selected.trump {
+  border-color: #20bfd0;
 }
 </style>
