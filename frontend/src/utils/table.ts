@@ -12,13 +12,13 @@ export function moveTag(move: Move | null | undefined) {
     move.info === "垫牌" || ["杂牌", "Mix"].includes(move.suitClass)
       ? "垫牌"
       : move.suitClass;
-  const icons: Record<string, string> = {
-    主牌: "🃏",
-    方块: "♦️",
-    红桃: "♥️",
-    梅花: "♣️",
-    黑桃: "♠️",
-    垫牌: "🍂",
+  const labels: Record<string, string> = {
+    主牌: "主",
+    方块: "副",
+    红桃: "副",
+    梅花: "副",
+    黑桃: "副",
+    垫牌: "杂",
   };
-  return icons[label] ? { label, icon: icons[label] } : null;
+  return labels[label] ? { label: labels[label] } : null;
 }

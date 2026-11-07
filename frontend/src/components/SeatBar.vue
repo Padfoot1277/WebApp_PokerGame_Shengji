@@ -58,9 +58,7 @@ const biggest = computed(() =>
           ? "上一墩 · 历史出牌"
           : ["round_settle", "game_over"].includes(v.phase)
             ? "末墩出牌 · 本局已结束"
-            : last
-              ? "本墩已结算 · 等待下一墩先手"
-              : "本墩牌桌"
+            : `本墩牌桌（打家得分：${v.points}）`
       }}</strong
       ><label
         ><input
@@ -90,17 +88,15 @@ const biggest = computed(() =>
         </header>
         <div class="seat-meta">
           <span v-if="index === turn && !previous" class="chip turn"
-            >⏳ 轮到操作</span
+            >⏳ 轮到</span
           >
-          <span v-if="index === leader" class="chip">🚩 本墩先手</span>
+          <span v-if="index === leader" class="chip">🚩 先手</span>
           <span v-if="moves?.[index] && index === biggest" class="chip biggest"
-            >👑 {{ last ? "赢墩" : "当前最大" }}</span
+            >👑 最大</span
           >
-          <span v-if="moveTag(moves?.[index])" class="chip"
-            >{{ moveTag(moves?.[index])?.icon }}
-            {{ moveTag(moves?.[index])?.label }}</span
-          >
-          <span class="chip">🖐️ {{ v.seats[index]?.handCount }} 张</span>
+          <span v-if="moveTag(moves?.[index])" class="chip">{{
+            moveTag(moves?.[index])?.label
+          }}</span>
           <span v-if="!v.seats[index]?.online" class="chip">📴 离线</span>
           <span v-if="v.surrenderVotes[index]" class="chip">🏳️ 申请弃局</span>
         </div>

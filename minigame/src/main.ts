@@ -1099,7 +1099,7 @@ function draw() {
       }
       avatar(seat, x! + 20, y! + 17);
       text(
-        `${relative(seat, s.mySeat)} · ${player.name || "等待入座"}${s.phase === "lobby" ? "" : ` · ${player.handCount}张`}${!player.online && player.uid ? " · 离线" : ""}`,
+        `${relative(seat, s.mySeat)} · ${player.name || "等待入座"}${!player.online && player.uid ? " · 离线" : ""}`,
         x! + 38,
         y! + 15,
         16,
@@ -1157,10 +1157,10 @@ function draw() {
         const move = (showingLast(s, previous) ? s.trick.lastMoves : s.trick.playedMoves)[seat];
         const last = showingLast(s, previous);
         const tags = [
-          !previous && seat === turn(s) ? "⏳轮到操作" : "",
+          !previous && seat === turn(s) ? "⏳轮到" : "",
           seat === (last ? s.trick.lastLeaderSeat : s.trick.leaderSeat) ? "🚩先手" : "",
-          move && seat === (last ? s.trick.winnerSeat : s.trick.biggerSeat) ? (last ? "👑赢墩" : "👑最大") : "",
-          moveTag(move) ? `${moveTag(move)!.icon}${moveTag(move)!.label}` : "",
+          move && seat === (last ? s.trick.winnerSeat : s.trick.biggerSeat) ? "👑最大" : "",
+          moveTag(move) ? moveTag(move)!.label : "",
         ].filter(Boolean);
         text(tags.join(" · "), x! + 8, y! + 31, 10, "#6652df", w! - 16);
 

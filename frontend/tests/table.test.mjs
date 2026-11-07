@@ -20,9 +20,12 @@ test("settled cards remain until the next lead, with history available afterward
 });
 test("padding is one tag even for uniform off-suit cards", () => {
   for (const suitClass of ["杂牌", "Mix", "黑桃"]) {
-    assert.equal(table.moveTag({ suitClass, info: "垫牌" }).label, "垫牌");
+    assert.equal(table.moveTag({ suitClass, info: "垫牌" }).label, "杂");
   }
-  assert.equal(table.moveTag({ suitClass: "主牌", info: "" }).label, "主牌");
+  assert.equal(table.moveTag({ suitClass: "主牌", info: "" }).label, "主");
+  for (const suitClass of ["方块", "红桃", "梅花", "黑桃"]) {
+    assert.equal(table.moveTag({ suitClass, info: "" }).label, "副");
+  }
 });
 test("hand selection waits for release and scrolling cancels the whole gesture", () => {
   const props = { selectedIds: [] };
