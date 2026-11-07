@@ -586,13 +586,9 @@ func leadPlayTrick(st *GameState, seat int, selected []rules.Card) (PlayedMove, 
 			currentMove.Info = info
 		}
 	}
-	// 出牌后，将上一回合的延迟状态清空（便于前端展示）
-	for i := 0; i < 4; i++ {
-		st.Trick.LastPlays[i] = nil
-	}
+	// 保留上一墩供回放，待本墩结算时再统一替换。
 	st.Trick.BiggerSeat = seat
 	st.Trick.Resolved = false
-	st.Trick.WinnerSeat = -1
 	return currentMove, nil
 }
 

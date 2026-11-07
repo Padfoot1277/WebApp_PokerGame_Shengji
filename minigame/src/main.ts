@@ -1,7 +1,7 @@
 import { GameConnection } from "./connection";
 import { guide, relative, seatName, seatRole, turn } from "./model";
 import { helpPages } from "./help";
-import { selectionError, selectionSummary } from "./selection";
+import { selectionError } from "./selection";
 import { viewport } from "./viewport";
 import { handLayout } from "./hand-layout";
 import {
@@ -498,7 +498,7 @@ function drawPanel() {
       );
       if (move) {
         move.followMove.cards
-          .slice(0, 7)
+          .slice(0, 8)
           .forEach((c, i) => card(c, x + 12 + i * 42, y + 40, 36, 62));
         text(
           `${move.followMove.cards.length} 张 · 点击查看完整出牌`,
@@ -784,16 +784,16 @@ function card(
   text(
     suit,
     x + 4,
-    top + (h <= 44 ? 9 : 12),
-    h <= 44 ? 10 : 12,
+    top + (h <= 44 ? 9 : 14),
+    h <= 44 ? 10 : 18,
     red ? "#dc4965" : "#30314f",
     w - 6,
   );
   text(
     c.rank.replace("大王", "王").replace("小王", "王"),
     x + 4,
-    top + (h <= 44 ? 27 : 35),
-    h <= 44 ? 18 : 20,
+    top + (h <= 44 ? 27 : 40),
+    h <= 44 ? 18 : 28,
     red ? "#dc4965" : "#30314f",
     w - 6,
   );
@@ -1080,12 +1080,12 @@ function draw() {
       880,
     );
     const base = Math.max(0, s.mySeat);
-    const positions = [
+    const positions = s.phase === "lobby" ? [
       [330, 150, 300, 90],
       [24, 188, 278, 118],
       [658, 188, 278, 118],
       [330, 252, 300, 90],
-    ];
+    ] : [[24, 146, 370, 94], [24, 244, 370, 94], [404, 146, 370, 94], [404, 244, 370, 94]];
     [2, 3, 1, 0].forEach((off, i) => {
       const seat = (base + off) % 4;
       const [x, y, w, h] = positions[i]!;
@@ -1159,15 +1159,17 @@ function draw() {
             ? 0
             : 10 * (1 - easeOut(motion.progress(`move:${seat}`)));
           move.followMove.cards
-            .slice(0, 7)
+            .slice(0, 8)
             .forEach((c, j) =>
-              card(c, x! + 8 + j * 31, y! + 28, 30, 44, false, arrival),
+              card(c, x! + 8 + j * 44, y! + 28, 43, 62, false, arrival),
             );
           text(
-            move.info || `${move.followMove.cards.length} 张 · 点此展开`,
+            move.info || (move.followMove.cards.length > 8
+              ? `共 ${move.followMove.cards.length} 张 · 查看全部`
+              : ""),
             x! + 8,
-            y! + h! - 9,
-            12,
+            y! + h! - 5,
+            10,
             "#6652df",
             w! - 16,
           );
@@ -1191,11 +1193,9 @@ function draw() {
                 ? s.trick.resolved && s.trick.lastMoves.every(Boolean)
                   ? seat === s.trick.winnerSeat
                     ? `上墩赢墩 · ${lastTrickSummary(s)}`
-                    : "上墩已结算 · 等待下一墩"
-                  : seat === turn(s)
-                    ? "轮到此席出牌"
-                    : "尚未出牌"
-                : `${seatRole(s, seat)} · ${seat === turn(s) ? (s.phase === "bottom" ? "请选 8 张扣底" : "选择亮主或跳过") : "等待操作"}`,
+                    : ""
+                  : ""
+                : "",
             x! + 8,
             y! + 42,
             12,
@@ -1259,16 +1259,16 @@ function draw() {
     }
     if (s.phase !== "lobby" && s.mySeat >= 0) {
       if (!["round_settle", "game_over"].includes(s.phase))
-        box(16, 350, 928, 120, "#f0e7fb");
-      box(16, 488, 928, 48, "#ffffff");
+        box(16, 344, 764, 182, "#f0e7fb");
+      box(794, 144, 150, 382, "#ffffff");
       const groups = s.myHand ?? [];
       const count = groups.flat().length;
       if (s.phase === "bottom" && s.bottomOwnerSeat === s.mySeat) {
         button(
           "查看原底牌",
-          658,
-          308,
-          156,
+          802,
+          206,
+          134,
           () =>
             wx.showModal({
               title: "本次收取的底牌",
@@ -1283,7 +1283,6 @@ function draw() {
       }
       const handPositions = handLayout(count);
       let index = 0;
-      if (count > 0) text("手牌 · 点选或滑动选牌", 32, 363, 14, "#74708d", 320);
       groups.forEach((group) => {
         group.forEach((c) => {
           const slot = handPositions.slot(index);
@@ -1337,28 +1336,16 @@ function draw() {
       actions.forEach((a, i) =>
         button(
           a.label,
-          190 + i * 128 + (i > 0 ? 64 : 0),
-          492,
-          i === 0 ? 180 : 116,
+          802,
+          482 - i * 54,
+          134,
           a.run,
           !busy && !previous,
           a.label === "清空选牌" || a.label === "跳过" ? "quiet" : "primary",
         ),
       );
       if (count > 0)
-        text(
-          selectionSummary(
-            groups.flat().filter((c) => selected.has(c.id)),
-            s,
-          ),
-          400,
-          363,
-          14,
-          "#6652df",
-          520,
-        );
-      if (count > 0)
-        button("选对子", 28, 492, 144, selectPair, !busy && !previous, "quiet");
+        button("选对子", 802, 482 - actions.length * 54, 134, selectPair, !busy && !previous, "quiet");
       if (busy)
         text(
           link.status !== "已连接"
@@ -1373,9 +1360,9 @@ function draw() {
       if (["bottom", "trump_fight", "play_trick"].includes(s.phase))
         button(
           s.surrenderVotes[s.mySeat] ? "撤回弃局" : "申请弃局",
-          827,
-          492,
-          110,
+          802,
+          152,
+          134,
           () => {
             const cancel = s.surrenderVotes[s.mySeat];
             wx.showModal({
@@ -1398,9 +1385,9 @@ function draw() {
     if (s.phase === "play_trick")
       button(
         previous ? "回当前墩" : "看上一墩",
-        818,
-        308,
-        118,
+        802,
+        206,
+        134,
         () => {
           previous = !previous;
           draw();
@@ -1411,18 +1398,18 @@ function draw() {
     if (["round_settle", "game_over"].includes(s.phase))
       drawSettlement(s, busy);
   }
-  if (messageTone === "error") box(24, 470, 912, 18, "#fae7e5");
+  if (messageTone === "error") box(24, 526, 750, 14, "#fae7e5");
   text(
     message,
     28,
-    479,
-    13,
+    533,
+    11,
     messageTone === "error" ? "#a54747" : "#74708d",
     900,
   );
   targets.push({
     x: 24,
-    y: 470,
+    y: 526,
     w: 912,
     h: 18,
     action: () => {
