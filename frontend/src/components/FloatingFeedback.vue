@@ -4,6 +4,7 @@ import { useGameStore } from "../store/game";
 import { floatingFeedback } from "../utils/play-feedback";
 const game = useGameStore();
 const lines = ref<string[]>([]);
+const errorTone = ref(false);
 let timer: ReturnType<typeof setTimeout> | undefined;
 let baseline = true;
 watch(
@@ -23,6 +24,8 @@ watch(
     }
     const feedback = floatingFeedback(before ?? null, next);
     if (!feedback.length) return;
+    if (errorTone.value && lines.value.length) return;
+    errorTone.value = false;
     lines.value = feedback;
     clearTimeout(timer);
     timer = setTimeout(() => {
@@ -31,11 +34,31 @@ watch(
   },
   { immediate: true },
 );
+watch(
+  () => game.messages[game.messages.length - 1],
+  (message) => {
+    if (message?.level !== "error") return;
+    errorTone.value = true;
+    lines.value = [message.text.replace(/ \([A-Z_]+\)$/, "")];
+    clearTimeout(timer);
+    timer = setTimeout(() => {
+      lines.value = [];
+      errorTone.value = false;
+    }, 3200);
+  },
+);
 onUnmounted(() => clearTimeout(timer));
 </script>
 <template>
   <div class="floating-feedback" role="status" aria-live="polite">
-    <div v-for="line in lines" :key="line" class="toast">{{ line }}</div>
+    <div
+      v-for="line in lines"
+      :key="line"
+      class="toast"
+      :class="{ error: errorTone }"
+    >
+      {{ line }}
+    </div>
   </div>
 </template>
 <style scoped>
@@ -61,6 +84,11 @@ onUnmounted(() => clearTimeout(timer));
   font-weight: 600;
   text-align: center;
   animation: appear 0.18s ease-out;
+}
+.toast.error {
+  background: #fff0ed;
+  color: #b14539;
+  border-color: #efc8c1;
 }
 @keyframes appear {
   from {

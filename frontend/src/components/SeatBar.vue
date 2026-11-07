@@ -246,15 +246,13 @@ header {
   gap: 3px;
   padding: 3px 7px;
   border-radius: 8px;
-  background: #fff;
+  background: rgba(255, 255, 255, 0.78);
   line-height: 1.3;
 }
 .chip.turn {
-  background: #fff0c4;
   color: #79531b;
 }
 .chip.biggest {
-  background: #e7dcff;
   color: #6043a0;
 }
 </style>

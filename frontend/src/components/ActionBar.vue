@@ -36,10 +36,6 @@ const canBottom = computed(
   () =>
     v.value?.phase === "bottom" && v.value.mySeat === v.value.bottomOwnerSeat,
 );
-const feedback = computed(() => {
-  const latest = game.messages[game.messages.length - 1];
-  return latest?.level === "error" ? latest : null;
-});
 const needed = computed(() => {
   const s = v.value;
   if (!s) return 0;
@@ -200,9 +196,6 @@ function send(type: string) {
       <small v-if="game.reviewPrevious">回放中，请先回到当前牌桌</small>
     </div>
     <p v-if="needed" class="selection-help">{{ selectionHelp }}</p>
-    <p v-if="feedback" class="feedback" :class="feedback.level" role="status">
-      {{ feedback.text.replace(/ \([A-Z_]+\)$/, "") }}
-    </p>
   </section>
 </template>
 <style scoped>
@@ -217,19 +210,6 @@ function send(type: string) {
   gap: 10px;
   align-items: center;
   flex-wrap: wrap;
-}
-.feedback {
-  font-size: 13px;
-  color: #52735e;
-  margin-top: 8px;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-.feedback.error {
-  color: #b14539;
-  background: #fff0ed;
-  padding: 8px;
-  border-radius: 6px;
 }
 .selection-help {
   font-size: 12px;

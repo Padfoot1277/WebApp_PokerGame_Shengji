@@ -686,3 +686,13 @@ test("public score toast reaches players and spectators even while room menu is 
   assert(!s.rendered.some(t => t.label === "打家 +20 分"));
  }
 });
+
+test("play errors float briefly instead of occupying the bottom strip", () => {
+ const { s, task } = connected();
+ task.message({ type: "error", message: "请跟足黑桃" });
+ const notices = s.rendered.filter(t => t.label === "请跟足黑桃");
+ assert.equal(notices.length, 1);
+ assert.equal(notices[0].x, 278);
+ s.advance(3300);
+ assert(!s.rendered.some(t => t.label === "请跟足黑桃"));
+});

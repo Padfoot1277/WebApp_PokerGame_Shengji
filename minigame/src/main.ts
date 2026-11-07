@@ -49,6 +49,10 @@ let message = "局域网开发体验 · 需与电脑连接同一 Wi-Fi";
 function notify(value: string, tone: "info" | "error" = "info") {
   message = value;
   messageTone = tone;
+  if (tone === "error" && view && view.phase !== "lobby") {
+    floatError = true; floatLines = wrap(value, 404).slice(0, 3); floatUntil = Date.now() + 3200;
+    clearTimeout(floatTimer); floatTimer = setTimeout(() => { floatLines = []; floatError = false; draw(); }, 3200);
+  }
   if (messages[messages.length - 1]?.text !== value)
     messages.push({ text: value, tone });
   if (messages.length > 8) messages.shift();
@@ -80,6 +84,7 @@ motion.setEnabled(!preferences.reducedMotion);
 let visible = true;
 let floatLines: string[] = [];
 let floatUntil = 0;
+let floatError = false;
 let floatTimer: ReturnType<typeof setTimeout> | undefined;
 let floatBaseline = true;
 const feedback = new FeedbackTracker();
@@ -158,8 +163,8 @@ const link = new GameConnection(
       const floating = floatingFeedback(floatBaseline ? null : view, next);
       floatBaseline = false;
       view = next;
-      if (floating.length && visible) {
-        floatLines = floating; floatUntil = Date.now() + 2200;
+      if (floating.length && visible && !(floatError && Date.now() < floatUntil)) {
+        floatError = false; floatLines = floating; floatUntil = Date.now() + 2200;
         clearTimeout(floatTimer); floatTimer = setTimeout(() => { floatLines = []; draw(); }, 2200);
       }
       applyFeedback(feedback.observe(next));
@@ -784,10 +789,10 @@ function card(
     selectionLift +
     arrival -
     (dealIndex >= 0 ? 10 * (1 - easeOut(dealProgress)) : 0);
-  box(x, top, w, h, disabled ? "#f4f1f3" : picked ? "#fff09c" : "#ffffff");
+  box(x, top, w, h, picked ? "#fff0c4" : disabled ? "#f4f1f3" : "#ffffff");
   if (isTrumpCard(c, view?.trump)) { ctx.strokeStyle = "#e5c969"; ctx.lineWidth = 2; ctx.stroke(); }
   if (picked) {
-    ctx.strokeStyle = "#6652df";
+    ctx.strokeStyle = "#d6b96b";
     ctx.lineWidth = 2;
     ctx.stroke();
   }
@@ -803,7 +808,7 @@ function card(
     x + 4,
     top + (h <= 44 ? 9 : 14),
     h <= 44 ? 10 : 18,
-    disabled ? (red ? "#c78996" : "#88838f") : red ? "#dc4965" : "#30314f",
+    disabled && !picked ? (red ? "#c78996" : "#88838f") : red ? "#dc4965" : "#30314f",
     w - 6,
   );
   text(
@@ -811,7 +816,7 @@ function card(
     x + 4,
     top + (h <= 44 ? 27 : 40),
     h <= 44 ? 18 : 28,
-    disabled ? (red ? "#c78996" : "#88838f") : red ? "#dc4965" : "#30314f",
+    disabled && !picked ? (red ? "#c78996" : "#88838f") : red ? "#dc4965" : "#30314f",
     w - 6,
   );
   if (interactive) {
@@ -1427,9 +1432,8 @@ function draw() {
     if (["round_settle", "game_over"].includes(s.phase))
       drawSettlement(s, busy);
   }
-  if (messageTone === "error") box(24, 526, 750, 14, "#fae7e5");
   text(
-    message,
+    messageTone === "error" ? "" : message,
     28,
     533,
     11,
@@ -1448,8 +1452,8 @@ function draw() {
   });
   drawPanel();
   if (Date.now() < floatUntil && floatLines.length) {
-    box(260, 142, 440, floatLines.length * 30 + 16, "#403569");
-    floatLines.forEach((line, i) => text(line, 278, 166 + i * 30, 18, "#ffffff", 404));
+    box(260, 142, 440, floatLines.length * 30 + 16, floatError ? "#fff0ed" : "#403569");
+    floatLines.forEach((line, i) => text(line, 278, 166 + i * 30, 18, floatError ? "#b14539" : "#ffffff", 404));
   }
 }
 function resize() {

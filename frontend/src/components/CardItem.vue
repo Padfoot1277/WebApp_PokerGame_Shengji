@@ -88,10 +88,10 @@ function onClick(e: MouseEvent) {
 
 /* 选中态 */
 .card.selected {
-  background: rgba(107, 92, 255, 0.9);
-  border-color: #8a80ff;
-  color: #fff;
-  box-shadow: 0 0 6px rgba(107, 92, 255, 0.6);
+  background: #fff0c4;
+  border-color: #d6b96b;
+  color: #000;
+  box-shadow: 0 0 6px rgba(214, 185, 107, 0.35);
   transform: translateY(-4px);
 }
 
@@ -143,6 +143,9 @@ function onClick(e: MouseEvent) {
   opacity: 0.6;
   cursor: default;
   box-shadow: none;
+}
+.card.selected.unavailable {
+  opacity: 1;
 }
 .trump {
   border: 2px solid #e5c969 !important;
