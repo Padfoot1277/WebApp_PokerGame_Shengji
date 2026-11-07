@@ -83,3 +83,24 @@ func TestReplacedConnectionCannotRejoinAfterReplacement(t *testing.T) {
 		t.Fatal("current player lost its online seat")
 	}
 }
+
+func TestRecordOptionPersistsWithRoom(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	for _, enabled := range []bool{false, true} {
+		id := "record-off"
+		if enabled {
+			id = "record-on"
+		}
+		r := NewRoom(id, enabled)
+		if r.state.HideRecord == enabled {
+			t.Fatal("incorrect room record option")
+		}
+		if err := r.save(); err != nil {
+			t.Fatal(err)
+		}
+		restored := NewRoom(id, !enabled)
+		if restored.state.HideRecord != r.state.HideRecord {
+			t.Fatal("reconnect changed room option")
+		}
+	}
+}

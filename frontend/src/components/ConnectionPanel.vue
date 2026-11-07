@@ -16,6 +16,7 @@ const wsBase = ref(
   import.meta.env.VITE_WS_URL ||
     `${location.protocol === "https:" ? "wss:" : "ws:"}//${location.host}/ws`,
 );
+const enableRecord = ref(false);
 function join(create = false) {
   if (create)
     roomId.value = Array.from(crypto.getRandomValues(new Uint8Array(4)), (n) =>
@@ -32,6 +33,7 @@ function join(create = false) {
     if (!["ws:", "wss:"].includes(url.protocol)) throw Error();
     url.searchParams.set("room", roomId.value.trim());
     url.searchParams.set("name", uid.value.trim());
+    url.searchParams.set("record", create && enableRecord.value ? "1" : "0");
     localStorage.setItem("nickname", uid.value.trim());
     localStorage.setItem("room", roomId.value.trim());
     game.connect(url.toString());
@@ -57,6 +59,9 @@ function logout() {
         placeholder="输入朋友分享的房间码"
         @keyup.enter="join()"
     /></label>
+    <label class="record-option"
+      ><input v-model="enableRecord" type="checkbox" />新房间启用记牌器</label
+    >
     <div class="actions">
       <button @click="join()">加入房间</button
       ><button class="secondary" @click="join(true)">创建房间</button>
@@ -88,6 +93,11 @@ input {
   border: 1px solid #cad9cf;
   border-radius: 8px;
   font: inherit;
+}
+.record-option input {
+  flex: none;
+  width: 18px;
+  height: 18px;
 }
 .actions {
   display: flex;

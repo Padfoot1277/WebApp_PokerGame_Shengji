@@ -45,7 +45,11 @@ const props = defineProps({
         />
       </div>
 
-      <p v-if="move.info && !['垫牌', '杂牌'].includes(move.info)" class="meta">
+      <p
+        v-if="move.info && !['垫牌', '杂牌'].includes(move.info)"
+        class="meta"
+        :class="{ 'throw-blocked': move.info.startsWith('甩牌被阻止') }"
+      >
         {{ move.info }}
       </p>
     </template>
@@ -102,6 +106,10 @@ const props = defineProps({
   flex-wrap: wrap;
   gap: 6px;
   font-size: 12px;
+}
+
+.meta.throw-blocked {
+  color: #c53939;
 }
 
 .meta-item {

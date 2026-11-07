@@ -36,7 +36,10 @@ const canBottom = computed(
   () =>
     v.value?.phase === "bottom" && v.value.mySeat === v.value.bottomOwnerSeat,
 );
-const feedback = computed(() => game.messages[game.messages.length - 1]);
+const feedback = computed(() => {
+  const latest = game.messages[game.messages.length - 1];
+  return latest?.level === "error" ? latest : null;
+});
 const needed = computed(() => {
   const s = v.value;
   if (!s) return 0;

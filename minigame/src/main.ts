@@ -338,6 +338,7 @@ function edit(title: string, current: string, save: (v: string) => void) {
     },
   });
 }
+let createRecord = false;
 function connect(create = false) {
   if (!/^wss?:\/\/[^\s?#]+$/i.test(server)) {
     notify("地址需类似 ws://电脑IP:8080/ws");
@@ -356,7 +357,7 @@ function connect(create = false) {
   wx.setStorageSync("shengji-name", nickname);
   view = null;
   selected.clear();
-  link.connect(server, room, nickname);
+  link.connect(server, room, nickname, create && createRecord);
 }
 function leaveRoom() {
   const leave = () => {
@@ -534,7 +535,7 @@ function drawPanel() {
       card(c, 128 + (i % 14) * 50, 190 + Math.floor(i / 14) * 80, 44, 70),
     );
     wrap(inspectedMove.info || "本次实际出牌，服务器已确认", 704).forEach(
-      (line, i) => text(line, 128, 406 + i * 23, 16, "#6652df", 704),
+      (line, i) => text(line, 128, 406 + i * 23, 16, inspectedMove?.info?.startsWith("甩牌被阻止") ? "#c53939" : "#6652df", 704),
     );
   } else if (panel === "record") {
     text("公开记牌", 128, 111, 26, "#30314f");
@@ -664,7 +665,7 @@ function drawPanel() {
       true,
       "quiet",
     );
-    button(
+    if (view && !view.hideRecord) button(
       "公开记牌",
       308,
       404,
@@ -1042,6 +1043,7 @@ function draw() {
     );
     text("首次使用可在此设置服务器", 674, 294, 14, "#74708d", 225);
     button("创建房间", 408, 344, 232, () => connect(true));
+    button(`新房记牌器：${createRecord ? "开启" : "关闭"}`, 408, 450, 496, () => { createRecord = !createRecord; draw(); }, true, "quiet");
     button("加入房间", 656, 344, 248, () => connect(), true, "sunny");
     text(
       "点击上方信息可编辑 · 输入好友房间码即可加入",
@@ -1180,7 +1182,7 @@ function draw() {
             x! + 8,
             y! + h! - 5,
             10,
-            "#6652df",
+            move.info?.startsWith("甩牌被阻止") ? "#c53939" : "#6652df",
             w! - 16,
           );
           targets.push({

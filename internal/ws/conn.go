@@ -53,10 +53,11 @@ type Conn struct {
 
 	closeOnce sync.Once
 
-	name   string
-	token  string
-	uid    string
-	roomID string
+	name          string
+	token         string
+	uid           string
+	roomID        string
+	recordEnabled bool
 }
 
 type HelloMsg struct {
@@ -64,10 +65,11 @@ type HelloMsg struct {
 	UID  string `json:"uid"`
 }
 
-func (c *Conn) Name() string   { return c.name }
-func (c *Conn) Token() string  { return c.token }
-func (c *Conn) UID() string    { return c.uid }
-func (c *Conn) RoomID() string { return c.roomID }
+func (c *Conn) Name() string        { return c.name }
+func (c *Conn) Token() string       { return c.token }
+func (c *Conn) UID() string         { return c.uid }
+func (c *Conn) RoomID() string      { return c.roomID }
+func (c *Conn) RecordEnabled() bool { return c.recordEnabled }
 
 // Done lets the room reject a connection replaced before its join was processed.
 func (c *Conn) Done() <-chan struct{} { return c.done }
@@ -136,7 +138,8 @@ func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
 		done: make(chan struct{}),
 		uid:  uid,
 		name: id.Name, token: token,
-		roomID: roomID,
+		roomID:        roomID,
+		recordEnabled: r.URL.Query().Get("record") == "1",
 	}
 
 	hub.register <- c

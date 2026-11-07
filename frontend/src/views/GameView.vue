@@ -45,8 +45,10 @@ function clearSelection() {
       />
     </div>
     <details class="panel">
-      <summary>记牌器与对局消息</summary>
-      <Record /><MessagePanel />
+      <summary>
+        {{ game.view?.hideRecord ? "对局消息" : "记牌器与对局消息" }}
+      </summary>
+      <Record v-if="game.view?.hideRecord === false" /><MessagePanel />
     </details>
   </div>
 </template>

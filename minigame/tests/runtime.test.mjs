@@ -439,8 +439,7 @@ test("record panel respects the server hideRecord flag", () => {
   };
   t.message({ type: "snapshot", state });
   s.button("菜单");
-  s.button("公开记牌");
-  assert(s.rendered.some((t) => t.label === "本局未开放记牌信息"));
+  assert(!s.rendered.some((t) => t.label === "公开记牌"));
   assert(!s.rendered.some((t) => t.label.includes("大王已出")));
 });
 
@@ -665,3 +664,13 @@ test("drag sounds are throttled and stable card hit boxes ignore intermediate an
   s.button("出牌");
   assert.equal(JSON.stringify(task.sent.at(-1).payload.cardIds), "[1,2,3]");
 });
+
+ test("record option only configures newly created rooms", () => {
+  for (const create of [false, true]) {
+   const s = boot();
+   s.button("新房记牌器：关闭");
+   s.button(create ? "创建房间" : "加入房间");
+   const url = new URL(s.tasks[0].options.url);
+   assert.equal(url.searchParams.get("record"), create ? "1" : "0");
+  }
+ });

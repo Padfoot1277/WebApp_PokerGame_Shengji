@@ -19,6 +19,7 @@ export class GameConnection {
   server = "";
   room = "";
   name = "";
+  recordEnabled = false;
   constructor(
     private receive: (msg: ServerMessage) => void,
     private change: () => void,
@@ -26,11 +27,12 @@ export class GameConnection {
   get busy() {
     return this.pending !== null;
   }
-  connect(server: string, room: string, name: string) {
+  connect(server: string, room: string, name: string, recordEnabled = this.recordEnabled) {
     this.close();
     this.server = server.trim().replace(/\/+$/, "");
     this.room = room;
     this.name = name;
+    this.recordEnabled = recordEnabled;
     if (!/^wss?:\/\/[^\s?#]+$/i.test(this.server)) {
       this.status = "地址格式有误，请填写 ws://电脑IP:8080/ws";
       this.change();
@@ -102,7 +104,7 @@ export class GameConnection {
     this.status = "正在连接电脑后端";
     this.change();
     const token = wx.getStorageSync(this.key()) || "";
-    const query = `room=${encodeURIComponent(this.room)}&name=${encodeURIComponent(this.name)}${token ? "&token=" + encodeURIComponent(token) : ""}`;
+    const query = `record=${this.recordEnabled ? "1" : "0"}&room=${encodeURIComponent(this.room)}&name=${encodeURIComponent(this.name)}${token ? "&token=" + encodeURIComponent(token) : ""}`;
     let task: WechatMinigame.SocketTask;
     try {
       task = wx.connectSocket({ url: this.server + "?" + query });

@@ -33,10 +33,11 @@ type Room struct {
 	loadErr    error
 }
 
-func NewRoom(id string) *Room {
+func NewRoom(id string, recordEnabled ...bool) *Room {
 	st := game.GameState{
-		RoomID: id,
-		Phase:  game.PhaseLobby,
+		RoomID:     id,
+		HideRecord: len(recordEnabled) == 0 || !recordEnabled[0],
+		Phase:      game.PhaseLobby,
 	}
 	// 初始化座位所属队伍
 	for i := 0; i < 4; i++ {

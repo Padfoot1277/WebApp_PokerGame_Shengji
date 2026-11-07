@@ -18,7 +18,7 @@ func NewManager() *Manager {
 	}
 }
 
-func (m *Manager) getOrCreate(roomID string) *Room {
+func (m *Manager) getOrCreate(roomID string, recordEnabled ...bool) *Room {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -28,7 +28,7 @@ func (m *Manager) getOrCreate(roomID string) *Room {
 	if len(m.rooms) >= 256 {
 		return nil
 	}
-	r := NewRoom(roomID)
+	r := NewRoom(roomID, recordEnabled...)
 	m.rooms[roomID] = r
 	r.retire = func() {
 		m.mu.Lock()
@@ -46,7 +46,11 @@ func (m *Manager) getOrCreate(roomID string) *Room {
 // main.go 里传 rm 给 ws.ServeWS 即可（编译器会检查方法集匹配）。
 
 func (m *Manager) OnConnect(c transport.Client) {
-	r := m.getOrCreate(c.RoomID())
+	enabled := false
+	if options, ok := c.(interface{ RecordEnabled() bool }); ok {
+		enabled = options.RecordEnabled()
+	}
+	r := m.getOrCreate(c.RoomID(), enabled)
 	if r == nil {
 		_ = c.Close()
 		return
