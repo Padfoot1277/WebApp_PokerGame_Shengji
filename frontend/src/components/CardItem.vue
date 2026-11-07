@@ -60,9 +60,9 @@ function onClick(e: MouseEvent) {
   margin: 2px;
   border-radius: 6px;
 
-  border: 1px solid #5a5a5a;
+  border: 1px solid #c3cec6;
 
-  background: #fefefe; /* 默认 */
+  background: #ffffff; /* 默认 */
   color: #000;
   display: flex; /* ⭐ 关键 */
   align-items: center; /* 垂直居中 */
@@ -82,25 +82,17 @@ function onClick(e: MouseEvent) {
 
 /* 👇 关键：覆盖所有非 selected 状态 */
 .card:not(.selected) {
-  background: #f8f8f8;
+  background: #ffffff;
   color: #000;
 }
 
 /* 选中态 */
 .card.selected {
-  background: rgba(177, 235, 193, 0.65);
-  border: 2px solid #20bfd0;
+  background: rgba(185, 239, 205, 0.35);
+  border: 2px solid #96dce2;
   color: #000;
-  box-shadow: 0 0 6px rgba(32, 191, 208, 0.25);
+  box-shadow: 0 0 6px rgba(150, 220, 226, 0.15);
   transform: translateY(-4px);
-}
-
-/* 桌面 hover 仅加边框高亮 */
-@media (hover: hover) and (pointer: fine) {
-  .card:not(.selected):not(.trump):hover {
-    border-color: #20bfd0;
-    box-shadow: 0 0 4px rgba(32, 191, 208, 0.25);
-  }
 }
 
 /* 点击缩放 */
@@ -151,6 +143,6 @@ function onClick(e: MouseEvent) {
   border: 2px solid #ffe033;
 }
 .card.selected.trump {
-  border-color: #20bfd0;
+  border-color: #96dce2;
 }
 </style>

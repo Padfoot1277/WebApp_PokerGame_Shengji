@@ -789,10 +789,10 @@ function card(
     selectionLift +
     arrival -
     (dealIndex >= 0 ? 10 * (1 - easeOut(dealProgress)) : 0);
-  box(x, top, w, h, picked ? "rgba(177, 235, 193, 0.65)" : disabled ? "#f4f1f3" : "#ffffff");
+  box(x, top, w, h, picked ? "rgba(185, 239, 205, 0.35)" : "#ffffff");
   if (isTrumpCard(c, view?.trump)) { ctx.strokeStyle = "#ffe033"; ctx.lineWidth = 2; ctx.stroke(); }
   if (picked) {
-    ctx.strokeStyle = "#20bfd0";
+    ctx.strokeStyle = "#96dce2";
     ctx.lineWidth = 2;
     ctx.stroke();
   }

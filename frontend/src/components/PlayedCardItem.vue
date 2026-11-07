@@ -38,8 +38,8 @@ const suitInfo = computed(() => suitToSymbol(props.card.suit));
   margin: 2px;
   border-radius: 6px;
 
-  background: #fafafa; /* 与手牌一致的浅背景 */
-  border: 1px solid #bfb9b9;
+  background: #ffffff; /* 与手牌一致的浅背景 */
+  border: 1px solid #c3cec6;
 
   font-size: 16px;
   line-height: 1;
