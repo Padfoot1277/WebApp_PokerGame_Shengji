@@ -88,8 +88,8 @@ function onClick(e: MouseEvent) {
 
 /* 选中态 */
 .card.selected {
-  background: #e7f0e8;
-  border: 2px solid #23785f;
+  background: #ecf7ef;
+  border: 2px solid #379b80;
   color: #000;
   box-shadow: none;
   filter: none;
@@ -144,6 +144,6 @@ function onClick(e: MouseEvent) {
   border: 2px solid #ffe033;
 }
 .card.selected.trump {
-  border-color: #23785f;
+  border-color: #379b80;
 }
 </style>
