@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useGameStore } from "../store/game";
 import { teamName, relativeSeat } from "../utils/seat";
 const game = useGameStore();
@@ -12,15 +12,26 @@ watch(
     copied.value = false;
   },
 );
-const sound = ref(false);
-const vibration = ref(false);
+const sound = ref(localStorage.getItem("shengji-sound") !== "false");
+const vibration = ref(localStorage.getItem("shengji-vibration") !== "false");
 let audio: AudioContext | null = null;
 function enableSound() {
   if (sound.value) {
-    audio ??= new AudioContext();
-    void audio.resume();
+    try {
+      audio ??= new AudioContext();
+      void audio.resume().catch(() => {});
+    } catch {
+      /* Optional browser audio support. */
+    }
   }
 }
+onMounted(() => window.addEventListener("pointerdown", enableSound));
+onUnmounted(() => window.removeEventListener("pointerdown", enableSound));
+watch(sound, (value) => localStorage.setItem("shengji-sound", String(value)));
+watch(vibration, (value) =>
+  localStorage.setItem("shengji-vibration", String(value)),
+);
+let lastTurn = "";
 watch(
   () => game.view?.version,
   () => {
@@ -36,6 +47,9 @@ watch(
             : s.phase === "call_trump"
               ? s.callTurnSeat
               : -1;
+    const key = `${s.roomId}:${s.roundIndex}:${s.trickIndex}:${s.phase}:${mine}`;
+    if (key === lastTurn) return;
+    lastTurn = key;
     if (mine !== s.mySeat) return;
     if (vibration.value) navigator.vibrate?.(80);
     if (sound.value && audio) {

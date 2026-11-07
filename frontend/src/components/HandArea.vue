@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, watch, ref } from "vue";
+import { computed, watch } from "vue";
 import { useGameStore } from "../store/game";
 import CardItem from "./CardItem.vue";
 const props = defineProps<{ selectedIds: number[] }>();
@@ -8,45 +8,39 @@ const emit = defineEmits<{
   (e: "clear"): void;
 }>();
 const game = useGameStore();
-const dragging = ref(false);
-const selectOnDrag = ref(true);
-const seen = new Set<number>();
+let gesture: { id: number; x: number; y: number; cancelled: boolean } | null =
+  null;
 let lastCardId: number | null = null;
 const hand = computed(() => game.view?.myHand ?? []);
-function select(id: number) {
+function toggle(id: number) {
   if (game.reviewPrevious || game.pending) return;
   const ids = new Set(props.selectedIds);
-  if (selectOnDrag.value) ids.add(id);
-  else ids.delete(id);
+  if (ids.has(id)) ids.delete(id);
+  else ids.add(id);
   emit("update:selectedIds", [...ids]);
 }
 function down(e: PointerEvent) {
-  if (game.reviewPrevious || game.pending) return;
   if (!e.isPrimary || e.button !== 0) return;
-  const button = (e.target as HTMLElement).closest<HTMLElement>(
+  const element = (e.target as HTMLElement).closest<HTMLElement>(
     "[data-card-id]",
   );
-  if (!button) return;
-  const id = Number(button.dataset.cardId);
-  lastCardId = id;
-  dragging.value = true;
-  seen.clear();
-  seen.add(id);
-  selectOnDrag.value = !props.selectedIds.includes(id);
-  select(id);
-  (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  if (!element) return;
+  lastCardId = Number(element.dataset.cardId);
+  gesture = { id: lastCardId, x: e.clientX, y: e.clientY, cancelled: false };
 }
 function move(e: PointerEvent) {
-  if (!dragging.value) return;
-  const button = document
-    .elementFromPoint(e.clientX, e.clientY)
-    ?.closest<HTMLElement>("[data-card-id]");
-  if (!button) return;
-  const id = Number(button.dataset.cardId);
-  if (!seen.has(id)) {
-    seen.add(id);
-    select(id);
-  }
+  if (gesture && Math.hypot(e.clientX - gesture.x, e.clientY - gesture.y) > 8)
+    gesture.cancelled = true;
+}
+function up(e: PointerEvent) {
+  const g = gesture;
+  gesture = null;
+  if (!g || g.cancelled || Math.hypot(e.clientX - g.x, e.clientY - g.y) > 8)
+    return;
+  const element = (e.target as HTMLElement).closest<HTMLElement>(
+    "[data-card-id]",
+  );
+  if (Number(element?.dataset.cardId) === g.id) toggle(g.id);
 }
 function pair(id: number) {
   if (game.reviewPrevious || game.pending) return;
@@ -79,7 +73,7 @@ watch(
   >
     <h3>
       我的手牌
-      <small>{{ hand.flat().length }} 张 · 滑动选牌，双击选同牌对子</small>
+      <small>{{ hand.flat().length }} 张 · 点击选牌，双击选同牌对子</small>
     </h3>
     <p v-if="game.reviewPrevious" class="read-only-hint">
       回放中，回到当前牌桌后可继续选牌。
@@ -91,8 +85,9 @@ watch(
         @pointerdown="down"
         @dblclick="lastCardId !== null && pair(lastCardId)"
         @pointermove="move"
-        @pointerup="dragging = false"
-        @pointercancel="dragging = false"
+        @pointerup="up"
+        @pointercancel="gesture = null"
+        @pointerleave="gesture = null"
       >
         <div
           v-for="card in group"
@@ -103,12 +98,7 @@ watch(
           <CardItem
             :card="card"
             :selected="selectedIds.includes(card.id)"
-            @toggle="
-              (id) => {
-                selectOnDrag = !selectedIds.includes(id);
-                select(id);
-              }
-            "
+            @toggle="toggle"
           /><small v-if="game.view?.usedTrumpIds.includes(card.id)" class="used"
             >已亮主</small
           >
@@ -130,7 +120,7 @@ watch(
   border-top: 1px solid #edf1ed;
 }
 .card-wrap {
-  touch-action: none;
+  touch-action: pan-y;
   position: relative;
 }
 .used {

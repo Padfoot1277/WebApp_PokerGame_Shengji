@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useGameStore } from "../store/game";
-import { relativeSeat, teamName } from "../utils/seat";
+import { relativeSeat } from "../utils/seat";
 import TrickPlayView from "./TrickPlayView.vue";
+import { showingLast, moveTag } from "../utils/table";
 const game = useGameStore();
 const previous = computed({
   get: () => game.reviewPrevious,
@@ -36,13 +37,18 @@ const turn = computed(() => {
       return -1;
   }
 });
-const moves = computed(() => {
-  const t = v.value?.trick;
-  return previous.value ||
-    ["round_settle", "game_over"].includes(v.value?.phase ?? "")
-    ? t?.lastMoves
-    : t?.playedMoves;
-});
+const last = computed(() =>
+  v.value ? showingLast(v.value, previous.value) : false,
+);
+const moves = computed(() =>
+  last.value ? v.value?.trick.lastMoves : v.value?.trick.playedMoves,
+);
+const leader = computed(() =>
+  last.value ? v.value?.trick.lastLeaderSeat : v.value?.trick.leaderSeat,
+);
+const biggest = computed(() =>
+  last.value ? v.value?.trick.winnerSeat : v.value?.trick.biggerSeat,
+);
 </script>
 <template>
   <section v-if="v" class="panel">
@@ -52,7 +58,9 @@ const moves = computed(() => {
           ? "上一墩 · 历史出牌"
           : ["round_settle", "game_over"].includes(v.phase)
             ? "末墩出牌 · 本局已结束"
-            : "本墩牌桌"
+            : last
+              ? "本墩已结算 · 等待下一墩先手"
+              : "本墩牌桌"
       }}</strong
       ><label
         ><input
@@ -73,31 +81,28 @@ const moves = computed(() => {
         class="seat"
         :class="[
           'position-' + position,
-          { active: index === turn, mine: index === v.mySeat },
+          { active: !previous && index === turn, mine: index === v.mySeat },
         ]"
       >
         <header>
           <strong>{{ relativeSeat(index, v.mySeat) }}</strong>
-          <small>{{
-            v.mySeat < 0
-              ? teamName(index % 2)
-              : index % 2 === v.mySeat % 2
-                ? "我方"
-                : "对方"
-          }}</small>
+          <small class="nickname">{{ v.seats[index]?.name || "空位" }}</small>
         </header>
-        <div>
-          {{ v.seats[index]?.name || "空位" }}
-          <small>{{ v.seats[index]?.online ? "" : "· 离线" }}</small>
-        </div>
         <div class="seat-meta">
-          <span>{{ v.seats[index]?.handCount }} 张</span
-          ><span v-if="index === turn">轮到操作</span
-          ><span v-if="v.phase !== 'call_trump' && index === v.starterSeat"
-            >坐家</span
-          ><span v-if="v.phase === 'play_trick' && index === v.trick.biggerSeat"
-            >当前最大</span
-          ><span v-if="v.surrenderVotes[index]">申请弃局</span>
+          <span v-if="index === turn && !previous" class="chip turn"
+            >⏳ 轮到操作</span
+          >
+          <span v-if="index === leader" class="chip">🚩 本墩先手</span>
+          <span v-if="moves?.[index] && index === biggest" class="chip biggest"
+            >👑 {{ last ? "赢墩" : "当前最大" }}</span
+          >
+          <span v-if="moveTag(moves?.[index])" class="chip"
+            >{{ moveTag(moves?.[index])?.icon }}
+            {{ moveTag(moves?.[index])?.label }}</span
+          >
+          <span class="chip">🖐️ {{ v.seats[index]?.handCount }} 张</span>
+          <span v-if="!v.seats[index]?.online" class="chip">📴 离线</span>
+          <span v-if="v.surrenderVotes[index]" class="chip">🏳️ 申请弃局</span>
         </div>
         <TrickPlayView
           v-if="['play_trick', 'round_settle', 'game_over'].includes(v.phase)"
@@ -187,7 +192,7 @@ header {
   color: #315568;
   font-size: 13px;
 }
-@media (max-width: 480px) {
+@media (max-width: 759px) {
   .position-0,
   .position-3 {
     grid-column: auto;
@@ -200,7 +205,36 @@ header {
     font-size: 10px;
   }
   .seat-meta {
-    font-size: 10px;
+    font-size: 11px;
+    gap: 4px;
   }
+  .table-heading {
+    margin-bottom: 8px;
+    font-size: 12px;
+  }
+  .chip {
+    padding: 2px 4px;
+  }
+}
+.nickname {
+  margin-left: auto;
+  overflow-wrap: anywhere;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 8px;
+  background: #fff;
+  line-height: 1.3;
+}
+.chip.turn {
+  background: #fff0c4;
+  color: #79531b;
+}
+.chip.biggest {
+  background: #e7dcff;
+  color: #6043a0;
 }
 </style>

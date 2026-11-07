@@ -1,3 +1,4 @@
+import { showingLast, moveTag } from "../../frontend/src/utils/table";
 import { GameConnection } from "./connection";
 import { guide, relative, seatName, seatRole, teamName, turn } from "./model";
 import { helpPages } from "./help";
@@ -1105,7 +1106,7 @@ function draw() {
         "#30314f",
         w! - 88,
       );
-      if (seat === turn(s)) {
+      if (seat === turn(s) && s.phase !== "play_trick") {
         box(x! + w! - 70, y! + 5, 62, 23, "#ffe08a");
         text(
           seat === s.mySeat ? "轮到你!" : "操作中",
@@ -1153,7 +1154,16 @@ function draw() {
           );
         }
       } else {
-        const move = (previous ? s.trick.lastMoves : s.trick.playedMoves)[seat];
+        const move = (showingLast(s, previous) ? s.trick.lastMoves : s.trick.playedMoves)[seat];
+        const last = showingLast(s, previous);
+        const tags = [
+          !previous && seat === turn(s) ? "⏳轮到操作" : "",
+          seat === (last ? s.trick.lastLeaderSeat : s.trick.leaderSeat) ? "🚩先手" : "",
+          move && seat === (last ? s.trick.winnerSeat : s.trick.biggerSeat) ? (last ? "👑赢墩" : "👑最大") : "",
+          moveTag(move) ? `${moveTag(move)!.icon}${moveTag(move)!.label}` : "",
+        ].filter(Boolean);
+        text(tags.join(" · "), x! + 8, y! + 31, 10, "#6652df", w! - 16);
+
         if (move) {
           const arrival = previous
             ? 0
@@ -1161,10 +1171,10 @@ function draw() {
           move.followMove.cards
             .slice(0, 8)
             .forEach((c, j) =>
-              card(c, x! + 8 + j * 44, y! + 28, 43, 62, false, arrival),
+              card(c, x! + 8 + j * 44, y! + 38, 43, 52, false, arrival),
             );
           text(
-            move.info || (move.followMove.cards.length > 8
+            (move.info && !["垫牌", "杂牌"].includes(move.info) ? move.info : "") || (move.followMove.cards.length > 8
               ? `共 ${move.followMove.cards.length} 张 · 查看全部`
               : ""),
             x! + 8,

@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import type { PropType } from "vue";
-import { computed } from "vue";
 import PlayedCardItem from "./PlayedCardItem.vue";
 
 type Card = { id: number; suit: string; rank: string };
@@ -31,8 +30,6 @@ const props = defineProps({
   isLeader: { type: Boolean, default: false },
   isTurn: { type: Boolean, default: false },
 });
-
-const suitClassText = computed(() => props.move?.suitClass ?? "");
 </script>
 
 <template>
@@ -48,12 +45,9 @@ const suitClassText = computed(() => props.move?.suitClass ?? "");
         />
       </div>
 
-      <div class="meta">
-        <span v-if="suitClassText" class="meta-item"
-          >✿ {{ suitClassText }}</span
-        >
-        <span v-if="move.info" class="meta-item"> {{ move.info }}</span>
-      </div>
+      <p v-if="move.info && !['垫牌', '杂牌'].includes(move.info)" class="meta">
+        {{ move.info }}
+      </p>
     </template>
   </div>
 </template>

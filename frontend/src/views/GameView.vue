@@ -25,7 +25,7 @@ function clearSelection() {
     <div class="game-summary"><GameStatusBar /><RoundStatusBar /></div>
     <TurnGuide />
     <div class="play-workspace">
-      <SeatBar />
+      <SeatBar class="table-dock" />
       <div class="hand-workspace">
         <HandArea
           v-if="(game.view?.mySeat ?? -1) >= 0"
@@ -37,12 +37,13 @@ function clearSelection() {
         </div>
         <BottomArea />
       </div>
+      <ActionBar
+        class="table-actions"
+        v-if="(game.view?.mySeat ?? -1) >= 0"
+        :selected-ids="selectedIds"
+        @clear-selection="clearSelection"
+      />
     </div>
-    <ActionBar
-      v-if="(game.view?.mySeat ?? -1) >= 0"
-      :selected-ids="selectedIds"
-      @clear-selection="clearSelection"
-    />
     <details class="panel">
       <summary>记牌器与对局消息</summary>
       <Record /><MessagePanel />
@@ -70,10 +71,27 @@ function clearSelection() {
   flex-direction: column;
   gap: 10px;
 }
+.table-actions {
+  grid-column: 1 / -1;
+}
 summary {
   cursor: pointer;
   font-size: 13px;
   color: #65796f;
+}
+@media (max-width: 759px) {
+  .table-dock {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    align-self: start;
+    z-index: 3;
+    margin-bottom: 0;
+    background: #fff;
+    box-shadow: 0 5px 18px #193c2420;
+    max-height: 60vh;
+    max-height: 60svh;
+    overflow: auto;
+  }
 }
 @media (min-width: 760px) {
   .play-workspace {

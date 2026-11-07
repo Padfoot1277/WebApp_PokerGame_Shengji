@@ -481,7 +481,7 @@ const allPlays = (s) => s.audioContexts.flatMap((c) => c.plays);
 const motionFrames = (s) =>
   [...s.timers.values()].filter((t) => t.delay === 33);
 test("lobby and room settings are reachable; audio opt-in previews and persists", () => {
-  const s = boot();
+  const s = boot({ storage: [[preferenceKey, { sound: false, vibration: false }]] });
   s.button("声音与动效");
   assert(s.rendered.some((t) => t.label === "声音与动效"));
   assert.equal(s.audioContexts.length, 0);

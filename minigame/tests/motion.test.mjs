@@ -21,13 +21,15 @@ function source(name) {
 }
 const { Motion } = source("motion"),
   { readPreferences } = source("preferences");
-test("preferences default quiet and tolerate damaged or old storage", () => {
+test("preferences default enabled and tolerate damaged or old storage", () => {
   for (const value of [null, "true", 1, { sound: "true" }]) {
     const p = readPreferences(value);
-    assert.equal(p.sound, false);
-    assert.equal(p.vibration, false);
+    assert.equal(p.sound, true);
+    assert.equal(p.vibration, true);
     assert.equal(p.reducedMotion, false);
   }
+  assert.equal(readPreferences({ sound: false, vibration: false }).sound, false);
+  assert.equal(readPreferences({ sound: false, vibration: false }).vibration, false);
   assert.equal(
     readPreferences({ sound: true, reducedMotion: true }).reducedMotion,
     true,

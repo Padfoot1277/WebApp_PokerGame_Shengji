@@ -60,6 +60,7 @@ export interface ViewState {
   };
   trick: {
     leaderSeat: number;
+    lastLeaderSeat?: number;
     turnSeat: number;
     playedMoves: (Move | null)[];
     lastMoves: (Move | null)[];

@@ -63,10 +63,11 @@ type ThrowMove struct {
 }
 
 type TrickState struct {
-	LeaderSeat int            `json:"leaderSeat"`  // 本回合先手
-	TurnSeat   int            `json:"turnSeat"`    // 当前轮到谁
-	Plays      [4]*PlayedMove `json:"playedMoves"` // 每座位本回合实际出的牌（未出牌则为空）
-	Throw      *ThrowMove     `json:"throwMove"`   // 先手甩牌意图
+	LastLeaderSeat int            `json:"lastLeaderSeat"`
+	LeaderSeat     int            `json:"leaderSeat"`  // 本回合先手
+	TurnSeat       int            `json:"turnSeat"`    // 当前轮到谁
+	Plays          [4]*PlayedMove `json:"playedMoves"` // 每座位本回合实际出的牌（未出牌则为空）
+	Throw          *ThrowMove     `json:"throwMove"`   // 先手甩牌意图
 
 	BiggerSeat int  `json:"biggerSeat"` // 当前最大者
 	Resolved   bool `json:"resolved"`   // 本回合（本墩）是否结束

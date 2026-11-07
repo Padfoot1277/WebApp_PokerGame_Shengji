@@ -708,6 +708,7 @@ func settleTrickEnd(st *GameState) string {
 	}
 
 	// 准备下一墩：先把本墩搬到 LastPlays，再清空 Plays
+	tr.LastLeaderSeat = tr.LeaderSeat
 	tr.LeaderSeat = winner
 	tr.TurnSeat = winner
 	for i := 0; i < 4; i++ {
