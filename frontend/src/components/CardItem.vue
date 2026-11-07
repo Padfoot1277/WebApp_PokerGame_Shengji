@@ -91,7 +91,8 @@ function onClick(e: MouseEvent) {
   background: #e7f0e8;
   border: 2px solid #23785f;
   color: #000;
-  box-shadow: 0 0 6px rgba(35, 120, 95, 0.15);
+  box-shadow: none;
+  filter: none;
   transform: translateY(-4px);
 }
 

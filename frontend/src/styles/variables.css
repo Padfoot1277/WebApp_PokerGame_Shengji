@@ -44,7 +44,7 @@ summary:focus-visible {
   outline: 3px solid #cb9e2e;
   outline-offset: 3px;
 }
-button:hover:not(:disabled) {
+button:where(:not(.card):not(.played-card)):hover:not(:disabled) {
   filter: brightness(1.07);
 }
 input {
