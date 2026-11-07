@@ -1,5 +1,5 @@
 import { GameConnection } from "./connection";
-import { guide, relative, seatName, seatRole, turn } from "./model";
+import { guide, relative, seatName, seatRole, teamName, turn } from "./model";
 import { helpPages } from "./help";
 import { selectionError } from "./selection";
 import { viewport } from "./viewport";
@@ -489,7 +489,7 @@ function drawPanel() {
         y = 148 + Math.floor(seat / 2) * 145;
       box(x, y, 340, 130, "#fff7e7");
       text(
-        `${seatName(seat)} · ${view?.seats[seat]?.name || "牌友"}${view?.trick.winnerSeat === seat ? " · 赢墩" : ""}`,
+        `${relative(seat, view?.mySeat ?? -1)} · ${view?.seats[seat]?.name || "牌友"}${view?.trick.winnerSeat === seat ? " · 赢墩" : ""}`,
         x + 12,
         y + 20,
         16,
@@ -521,7 +521,7 @@ function drawPanel() {
       } else text("本墩尚未出牌", x + 12, y + 70, 16, "#74708d");
     });
   } else if (panel === "move" && inspectedMove) {
-    text(`${seatName(inspectedMove.seat)} · 出牌详情`, 128, 111, 26, "#30314f");
+    text(`${relative(inspectedMove.seat, view?.mySeat ?? -1)} · 出牌详情`, 128, 111, 26, "#30314f");
     text(
       `${inspectedMove.followMove.cards.length} 张 · ${inspectedMove.suitClass}`,
       128,
@@ -844,7 +844,7 @@ function drawSettlement(s: ViewState, busy: boolean) {
   const over = s.phase === "game_over";
   text(
     over
-      ? `${s.winnerTeam === 0 ? "东西队" : "南北队"}升 A 获胜`
+      ? `${s.mySeat < 0 ? teamName(s.winnerTeam) : s.winnerTeam === s.mySeat % 2 ? "我方" : "对方"}升 A 获胜`
       : `第 ${s.roundIndex + 1} 局结算`,
     48,
     181,
@@ -888,7 +888,7 @@ function drawSettlement(s: ViewState, busy: boolean) {
   text(
     over
       ? "整场结束，返回大厅可创建新房间"
-      : `下一局由${seatName(s.nextStarterSeat)}「${s.seats[s.nextStarterSeat]?.name || "牌友"}」开启`,
+      : `下一局由${relative(s.nextStarterSeat, s.mySeat)}「${s.seats[s.nextStarterSeat]?.name || "牌友"}」开启`,
     286,
     308,
     17,
@@ -1054,7 +1054,7 @@ function draw() {
     const s = view;
     const busy = link.busy || link.status !== "已连接";
     text(
-      `第 ${s.roundIndex + 1} 局   ${s.mySeat >= 0 ? `我方 ${s.teams[s.mySeat % 2]?.levelRank} 级 / 对方 ${s.teams[(s.mySeat + 1) % 2]?.levelRank} 级` : `东西 ${s.teams[0]?.levelRank} 级 / 南北 ${s.teams[1]?.levelRank} 级`}   打家 ${s.points} 分`,
+      `第 ${s.roundIndex + 1} 局   ${s.mySeat >= 0 ? `我方 ${s.teams[s.mySeat % 2]?.levelRank} 级 / 对方 ${s.teams[(s.mySeat + 1) % 2]?.levelRank} 级` : `A组 ${s.teams[0]?.levelRank} 级 / B组 ${s.teams[1]?.levelRank} 级`}   打家 ${s.points} 分`,
       28,
       88,
       16,
@@ -1071,7 +1071,7 @@ function draw() {
       s.mySeat >= 0 && s.surrenderVotes[(s.mySeat + 2) % 4] && !s.surrendered;
     text(
       previous
-        ? `上一墩回放 · ${seatName(s.trick.winnerSeat)}赢墩 · 点击“回当前墩”继续操作`
+        ? `上一墩回放 · ${relative(s.trick.winnerSeat, s.mySeat)}赢墩 · 点击“回当前墩”继续操作`
         : `${partnerVote ? "队友已申请弃局 · " : ""}${guide(s)}`,
       38,
       122,
@@ -1228,7 +1228,7 @@ function draw() {
           ctx.restore();
         } else
           text(
-            ["东", "南", "西", "北"][i]!,
+            ["A1", "B1", "A2", "B2"][i]!,
             x + 6,
             394,
             16,

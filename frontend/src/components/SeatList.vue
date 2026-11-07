@@ -13,7 +13,7 @@ const ready = computed(
 </script>
 <template>
   <section class="panel">
-    <h3>选择座位 <small>东与西、南与北互为队友</small></h3>
+    <h3>选择座位 <small>坐在对面的牌友是你的队友</small></h3>
     <p v-if="seats.length" class="readiness" role="status">
       已入座 {{ occupied }} / 4 · 已准备 {{ ready }} / 4。
       {{

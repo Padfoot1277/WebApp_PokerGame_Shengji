@@ -6,6 +6,15 @@ const game = useGameStore();
 
 const teams = computed(() => game.view?.teams);
 const roundIndex = computed(() => game.view?.roundIndex ?? 0);
+const mySeat = computed(() => game.view?.mySeat ?? -1);
+const teamLabel = (index: number) =>
+  mySeat.value < 0
+    ? index === 0
+      ? "A组"
+      : "B组"
+    : index === mySeat.value % 2
+      ? "我方"
+      : "对方";
 </script>
 
 <template>
@@ -17,7 +26,7 @@ const roundIndex = computed(() => game.view?.roundIndex ?? 0);
 
       <div v-if="teams" class="teams">
         <div class="team">
-          <span class="team-label">东西队</span>
+          <span class="team-label">{{ teamLabel(0) }}</span>
           <span class="level">{{ teams[0]?.levelRank }}</span>
           <span class="unit">级</span>
         </div>
@@ -25,7 +34,7 @@ const roundIndex = computed(() => game.view?.roundIndex ?? 0);
         <div class="divider"></div>
 
         <div class="team">
-          <span class="team-label">南北队</span>
+          <span class="team-label">{{ teamLabel(1) }}</span>
           <span class="level">{{ teams[1]?.levelRank }}</span>
           <span class="unit">级</span>
         </div>

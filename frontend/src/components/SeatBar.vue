@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useGameStore } from "../store/game";
-import { relativeSeat, seatName, teamName } from "../utils/seat";
+import { relativeSeat, teamName } from "../utils/seat";
 import TrickPlayView from "./TrickPlayView.vue";
 const game = useGameStore();
 const previous = computed({
@@ -81,7 +81,9 @@ const moves = computed(() => {
           <small>{{
             v.mySeat < 0
               ? teamName(index % 2)
-              : `${seatName(index)} · ${index % 2 === v.mySeat % 2 ? "我方" : "对方"}`
+              : index % 2 === v.mySeat % 2
+                ? "我方"
+                : "对方"
           }}</small>
         </header>
         <div>

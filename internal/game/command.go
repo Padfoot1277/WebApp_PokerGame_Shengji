@@ -144,5 +144,5 @@ func SeatName(seat int) string {
 	if seat < 0 || seat > 3 {
 		return "未入座"
 	}
-	return []string{"东席", "南席", "西席", "北席"}[seat]
+	return []string{"座位 A1", "座位 B1", "座位 A2", "座位 B2"}[seat]
 }

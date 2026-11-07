@@ -1,6 +1,7 @@
 import type { ViewState } from "../../frontend/src/types/view";
 export const seatName = (seat: number) =>
-  ["东席", "南席", "西席", "北席"][seat] ?? "未入座";
+  ["座位 A1", "座位 B1", "座位 A2", "座位 B2"][seat] ?? "未入座";
+export const teamName = (team: number) => (team === 0 ? "A组" : "B组");
 export const relative = (seat: number, mine: number) =>
   mine < 0
     ? seatName(seat)
@@ -12,8 +13,8 @@ export function seatRole(s: ViewState, seat: number): string {
         ? "我方"
         : "对方"
       : seat % 2 === 0
-        ? "东西队"
-        : "南北队";
+        ? "A组"
+        : "B组";
   if (["lobby", "dealing", "call_trump"].includes(s.phase)) return own;
   const caller = s.trump.callerSeat >= 0 ? s.trump.callerSeat : s.starterSeat;
   return `${own} · ${seat % 2 === caller % 2 ? "坐家" : "打家"}`;
@@ -62,7 +63,9 @@ export function guide(s: ViewState): string {
     case "round_settle":
       return `本局 ${s.roundPointsFinal} 分 · ${s.roundResultLabel} · 坐家 +${s.callerDelta} / 打家 +${s.defenderDelta} · ${name(s.nextStarterSeat)}开下一局`;
     case "game_over":
-      return `${s.winnerTeam === 0 ? "东西队" : "南北队"}升到 A，整局获胜！可返回大厅创建新房间`;
+      return s.mySeat < 0
+        ? `${teamName(s.winnerTeam)}升到 A，整局获胜！可返回大厅创建新房间`
+        : `${s.winnerTeam === s.mySeat % 2 ? "我方" : "对方"}升到 A，整局获胜！可返回大厅创建新房间`;
     default:
       return "选择座位，四人准备后自动开始";
   }

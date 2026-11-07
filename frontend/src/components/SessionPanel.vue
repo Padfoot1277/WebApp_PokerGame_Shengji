@@ -146,7 +146,7 @@ async function invite() {
     <h2>
       {{
         v.phase === "game_over"
-          ? `${teamName(v.winnerTeam)}升到 A，获胜！`
+          ? `${v.mySeat < 0 ? teamName(v.winnerTeam) : v.winnerTeam === v.mySeat % 2 ? "我方" : "对方"}升到 A，获胜！`
           : "小局结算"
       }}
     </h2>

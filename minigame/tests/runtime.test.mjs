@@ -290,7 +290,7 @@ test("touch sends server command; foreground restores token", () => {
   task.message({ type: "snapshot", state: snapshot() });
   s.touch(40, 400);
   s.events.TouchEnd({});
-  s.touch(200, 510);
+  s.touch(850, 482);
   assert.equal(task.sent[0].type, "game.play_cards");
   assert.equal(JSON.stringify(task.sent[0].payload.cardIds), "[1]");
   assert(task.sent[0].reqId);
@@ -387,13 +387,13 @@ test("long moves expand without accidental submission and error messages remain 
     },
   };
   t.message({ type: "snapshot", state });
-  s.touch(400, 170);
-  assert(s.rendered.some((t) => t.label === "西席 · 出牌详情"));
+  s.touch(200, 170);
+  assert(s.rendered.some((t) => t.label === "对家 · 出牌详情"));
   assert(s.rendered.some((t) => t.label === "20 张 · 黑桃"));
   assert.equal(t.sent.length, 0);
   s.button("关闭");
   t.message({ type: "error", message: "这不是你的回合" });
-  s.touch(50, 479);
+  s.touch(50, 533);
   assert(s.rendered.some((t) => t.label === "牌桌消息"));
   assert(s.rendered.some((t) => t.label === "这不是你的回合"));
 });
@@ -651,10 +651,10 @@ test("drag sounds are throttled and stable card hit boxes ignore intermediate an
   const start = allPlays(s).length;
   s.touch(40, 400);
   s.advance(33);
-  s.events.TouchMove({ touches: [{ clientX: 80, clientY: 400 }] });
+  s.events.TouchMove({ touches: [{ clientX: 110, clientY: 400 }] });
   s.advance(33);
-  s.events.TouchMove({ touches: [{ clientX: 122, clientY: 400 }] });
-  s.events.TouchMove({ touches: [{ clientX: 80, clientY: 400 }] });
+  s.events.TouchMove({ touches: [{ clientX: 165, clientY: 400 }] });
+  s.events.TouchMove({ touches: [{ clientX: 110, clientY: 400 }] });
   s.events.TouchEnd({});
   assert.equal(
     allPlays(s).length,
