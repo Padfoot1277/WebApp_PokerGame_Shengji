@@ -26,7 +26,10 @@ class WSService {
     if (generation !== this.generation) return;
     this.status?.("connecting");
     const url = new URL(this.url, location.href);
-    const token = sessionStorage.getItem("shengji-token");
+    const identityKey = `shengji-identity:${url.origin}${url.pathname}:${url.searchParams.get("room") || ""}:${url.searchParams.get("name") || ""}`;
+    const token =
+      sessionStorage.getItem("shengji-token") ||
+      localStorage.getItem(identityKey);
     if (token) url.searchParams.set("token", token);
     const ws = new WebSocket(url);
     this.ws = ws;
@@ -45,6 +48,7 @@ class WSService {
         this.retry = 0;
         this.status?.("open");
         sessionStorage.setItem("shengji-token", msg.token);
+        localStorage.setItem(identityKey, msg.token);
         // Resend only commands from this connection session, with their original IDs.
         for (const request of this.pending.values())
           ws.send(JSON.stringify(request));
@@ -60,6 +64,10 @@ class WSService {
     ws.onclose = (event) => {
       if (generation !== this.generation || this.ws !== ws) return;
       if (event.code === 4001 || event.code === 4003) {
+        if (event.code === 4003) {
+          sessionStorage.removeItem("shengji-token");
+          localStorage.removeItem(identityKey);
+        }
         sessionStorage.removeItem("shengji-url");
         this.close();
         this.handler?.({

@@ -33,7 +33,7 @@ test("hand selection waits for release and scrolling cancels the whole gesture",
   const script = readFileSync(new URL("../src/components/HandArea.vue", import.meta.url), "utf8").match(/<script setup lang="ts">([\s\S]*?)<\/script>/)[1];
   const game = { view: { phase: "play_trick", mySeat: 0, myHand: [[{ id: 7, suit: "♠", rank: "A", suit_class: "黑桃" }]], trick: { turnSeat: 0, leaderSeat: 0, playedMoves: [null,null,null,null] } }, reviewPrevious: false, pending: false };
   const ctx = load(script, {
-    require: name => name === "vue" ? { computed: fn => ({ get value() { return fn(); } }), watch() {} } : name.includes("store") ? { useGameStore: () => game } : name.includes("play-feedback") ? play : {},
+    require: name => name === "vue" ? { computed: fn => ({ get value() { return fn(); } }), watch() {} } : name.includes("store") ? { useGameStore: () => game } : name.includes("play-feedback") ? play : name.includes("utils/card") ? {suitToSymbol: s => ({symbol:s})} : {},
     defineProps: () => props,
     defineEmits: () => (name, ids) => { if (name === "update:selectedIds") props.selectedIds = ids; },
   });

@@ -51,13 +51,15 @@ type Conn struct {
 	send chan []byte
 	done chan struct{}
 
-	closeOnce sync.Once
+	closeOnce  sync.Once
+	identityMu sync.RWMutex
 
-	name          string
-	token         string
-	uid           string
-	roomID        string
-	recordEnabled bool
+	name                  string
+	token                 string
+	uid                   string
+	roomID                string
+	recordEnabled         bool
+	allowNicknameRecovery bool
 }
 
 type HelloMsg struct {
@@ -66,8 +68,8 @@ type HelloMsg struct {
 }
 
 func (c *Conn) Name() string        { return c.name }
-func (c *Conn) Token() string       { return c.token }
-func (c *Conn) UID() string         { return c.uid }
+func (c *Conn) Token() string       { c.identityMu.RLock(); defer c.identityMu.RUnlock(); return c.token }
+func (c *Conn) UID() string         { c.identityMu.RLock(); defer c.identityMu.RUnlock(); return c.uid }
 func (c *Conn) RoomID() string      { return c.roomID }
 func (c *Conn) RecordEnabled() bool { return c.recordEnabled }
 
@@ -138,8 +140,9 @@ func ServeWS(hub *Hub, router Router, w http.ResponseWriter, r *http.Request) {
 		done: make(chan struct{}),
 		uid:  uid,
 		name: id.Name, token: token,
-		roomID:        roomID,
-		recordEnabled: r.URL.Query().Get("record") == "1",
+		roomID:                roomID,
+		recordEnabled:         r.URL.Query().Get("record") == "1",
+		allowNicknameRecovery: r.URL.Query().Get("recover") == "1",
 	}
 
 	hub.register <- c
@@ -254,4 +257,18 @@ func normalizeAnyUID(raw string) string {
 		s = string(rs[:maxRunes])
 	}
 	return s
+}
+
+func (c *Conn) RecoverSeat(uid string) bool {
+	if !c.allowNicknameRecovery {
+		return false
+	}
+	_, token, err := signIdentity(identity{UID: uid, Name: c.name, Expires: time.Now().Add(7 * 24 * time.Hour).Unix()})
+	if err != nil {
+		return false
+	}
+	c.identityMu.Lock()
+	c.uid, c.token = uid, token
+	c.identityMu.Unlock()
+	return true
 }

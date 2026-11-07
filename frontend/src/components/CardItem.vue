@@ -1,7 +1,9 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { suitToSymbol } from "../utils/card";
+import { useGameStore } from "../store/game";
+import { suitToSymbol, isTrumpCard } from "../utils/card";
 
+const game = useGameStore();
 const suitInfo = computed(() => suitToSymbol(props.card.suit));
 
 type Card = {
@@ -21,7 +23,7 @@ const emit = defineEmits<{
 }>();
 
 function onClick(e: MouseEvent) {
-  if (!props.unavailable && e.detail === 0) emit("toggle", props.card.id);
+  if (e.detail === 0) emit("toggle", props.card.id);
 
   // 关键：手动取消 focus
   const target = e.currentTarget as HTMLButtonElement;
@@ -32,8 +34,11 @@ function onClick(e: MouseEvent) {
 <template>
   <button
     class="card"
-    :class="{ selected, unavailable }"
-    :aria-disabled="unavailable"
+    :class="{
+      selected,
+      unavailable,
+      trump: isTrumpCard(card, game.view?.trump),
+    }"
     :aria-pressed="selected"
     :aria-label="`${card.suit}${card.rank}`"
     @click="onClick"
@@ -135,9 +140,11 @@ function onClick(e: MouseEvent) {
   font-size: 14px;
 }
 .card.unavailable {
-  filter: grayscale(1);
-  opacity: 0.42;
+  opacity: 0.6;
   cursor: default;
   box-shadow: none;
+}
+.trump {
+  border: 2px solid #e5c969 !important;
 }
 </style>

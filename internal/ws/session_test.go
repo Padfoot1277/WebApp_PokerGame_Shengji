@@ -36,3 +36,14 @@ func TestAuthenticatedNicknameChangeKeepsSeatIdentity(t *testing.T) {
 		t.Fatal("new nickname token invalid")
 	}
 }
+
+func TestRecoveredSeatReceivesValidIdentity(t *testing.T) {
+	c := &Conn{uid: "new", name: "牌友", allowNicknameRecovery: true}
+	if !c.RecoverSeat("original") {
+		t.Fatal("recovery failed")
+	}
+	id, _, err := session(c.Token(), "牌友")
+	if err != nil || id.UID != "original" || c.UID() != "original" {
+		t.Fatal("recovered identity invalid")
+	}
+}

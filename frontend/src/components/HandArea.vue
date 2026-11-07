@@ -2,6 +2,7 @@
 import { computed, watch } from "vue";
 import { useGameStore } from "../store/game";
 import { unavailableCard } from "../utils/play-feedback";
+import { suitToSymbol } from "../utils/card";
 import CardItem from "./CardItem.vue";
 const props = defineProps<{ selectedIds: number[] }>();
 const emit = defineEmits<{
@@ -15,14 +16,6 @@ let lastCardId: number | null = null;
 const hand = computed(() => game.view?.myHand ?? []);
 function toggle(id: number) {
   if (game.reviewPrevious || game.pending) return;
-  if (
-    unavailableCard(
-      game.view,
-      hand.value.flat().find((c) => c.id === id)!,
-      props.selectedIds,
-    )
-  )
-    return;
   const ids = new Set(props.selectedIds);
   if (ids.has(id)) ids.delete(id);
   else ids.add(id);
@@ -55,15 +48,10 @@ function pair(id: number) {
   if (game.reviewPrevious || game.pending) return;
   const cards = hand.value.flat();
   const card = cards.find((c) => c.id === id);
-  if (!card || unavailableCard(game.view, card, props.selectedIds)) return;
+  if (!card) return;
   const ids = new Set(props.selectedIds);
   for (const c of cards)
-    if (
-      c.suit === card.suit &&
-      c.rank === card.rank &&
-      !unavailableCard(game.view, c, props.selectedIds)
-    )
-      ids.add(c.id);
+    if (c.suit === card.suit && c.rank === card.rank) ids.add(c.id);
   emit("update:selectedIds", [...ids]);
 }
 watch(
@@ -87,13 +75,18 @@ watch(
   >
     <h3>
       我的手牌
-      <small>{{ hand.flat().length }} 张 · 点击选牌，双击选同牌对子</small>
+      <small
+        >主：{{
+          game.view?.trump.levelRank === "Pending"
+            ? "待定"
+            : `${game.view?.trump.hasTrumpSuit ? suitToSymbol(game.view.trump.suit || "").symbol : "硬"}${game.view?.trump.levelRank || ""}`
+        }}</small
+      >
     </h3>
     <p v-if="game.reviewPrevious" class="read-only-hint">
       回放中，回到当前牌桌后可继续选牌。
     </p>
     <div v-for="(group, index) in hand" :key="index" class="suit-group">
-      <small>{{ group[0]?.suit_class }}</small>
       <div
         class="cards-row"
         @pointerdown="down"

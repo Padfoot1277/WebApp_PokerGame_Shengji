@@ -33,6 +33,7 @@ function join(create = false) {
     if (!["ws:", "wss:"].includes(url.protocol)) throw Error();
     url.searchParams.set("room", roomId.value.trim());
     url.searchParams.set("name", uid.value.trim());
+    url.searchParams.set("recover", create ? "0" : "1");
     url.searchParams.set("record", create && enableRecord.value ? "1" : "0");
     localStorage.setItem("nickname", uid.value.trim());
     localStorage.setItem("room", roomId.value.trim());
@@ -44,6 +45,10 @@ function join(create = false) {
 function logout() {
   game.disconnect();
   sessionStorage.removeItem("shengji-token");
+  const url = new URL(wsBase.value);
+  localStorage.removeItem(
+    `shengji-identity:${url.origin}${url.pathname}:${roomId.value.trim()}:${uid.value.trim()}`,
+  );
 }
 </script>
 <template>

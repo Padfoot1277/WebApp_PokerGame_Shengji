@@ -104,3 +104,29 @@ func TestRecordOptionPersistsWithRoom(t *testing.T) {
 		}
 	}
 }
+
+type recoveringClient struct {
+	fakeClient
+	name string
+}
+
+func (c *recoveringClient) Name() string                { return c.name }
+func (c *recoveringClient) RecoverSeat(uid string) bool { c.uid = uid; return true }
+func TestNicknameRecoveryOnlyReclaimsUniqueOfflineSeat(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	for _, kind := range []string{"offline", "online", "duplicate"} {
+		r := NewRoom(kind)
+		r.state.Seats[0].UID = "original"
+		r.state.Seats[0].Name = "牌友"
+		r.state.Seats[0].Online = kind == "online"
+		if kind == "duplicate" {
+			r.state.Seats[1].UID = "other"
+			r.state.Seats[1].Name = "牌友"
+		}
+		c := &recoveringClient{fakeClient: fakeClient{uid: "new"}, name: "牌友"}
+		r.acceptConnection(c)
+		if (c.UID() == "original") != (kind == "offline") {
+			t.Fatalf("unexpected recovery for %s", kind)
+		}
+	}
+}

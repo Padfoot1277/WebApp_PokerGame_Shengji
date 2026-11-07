@@ -1,7 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useGameStore } from "../store/game";
-import { relativeSeat } from "../utils/seat";
 import TrickPlayView from "./TrickPlayView.vue";
 import { showingLast, moveTag } from "../utils/table";
 const game = useGameStore();
@@ -58,7 +57,7 @@ const biggest = computed(() =>
           ? "上一墩 · 历史出牌"
           : ["round_settle", "game_over"].includes(v.phase)
             ? "末墩出牌 · 本局已结束"
-            : `本墩牌桌（打家得分：${v.points}）`
+            : `牌桌（打家得分：${v.points}）`
       }}</strong
       ><label
         ><input
@@ -87,23 +86,36 @@ const biggest = computed(() =>
         ]"
       >
         <header>
-          <strong>{{ relativeSeat(index, v.mySeat) }}</strong>
-          <small class="nickname">{{ v.seats[index]?.name || "空位" }}</small>
+          <strong>{{ v.seats[index]?.name || "空位" }}</strong>
+          <div class="seat-meta">
+            <span
+              v-if="index === turn && !previous"
+              class="chip turn"
+              title="轮到"
+              aria-label="轮到"
+              >⏳</span
+            >
+            <span
+              v-if="index === leader"
+              class="chip"
+              title="先手"
+              aria-label="先手"
+              >🚩</span
+            >
+            <span
+              v-if="moves?.[index] && index === biggest"
+              class="chip biggest"
+              title="最大"
+              aria-label="最大"
+              >👑</span
+            >
+            <span v-if="moveTag(moves?.[index])" class="chip">{{
+              moveTag(moves?.[index])?.label
+            }}</span>
+            <span v-if="!v.seats[index]?.online" class="chip">📴 离线</span>
+            <span v-if="v.surrenderVotes[index]" class="chip">🏳️ 申请弃局</span>
+          </div>
         </header>
-        <div class="seat-meta">
-          <span v-if="index === turn && !previous" class="chip turn"
-            >⏳ 轮到</span
-          >
-          <span v-if="index === leader" class="chip">🚩 先手</span>
-          <span v-if="moves?.[index] && index === biggest" class="chip biggest"
-            >👑 最大</span
-          >
-          <span v-if="moveTag(moves?.[index])" class="chip">{{
-            moveTag(moves?.[index])?.label
-          }}</span>
-          <span v-if="!v.seats[index]?.online" class="chip">📴 离线</span>
-          <span v-if="v.surrenderVotes[index]" class="chip">🏳️ 申请弃局</span>
-        </div>
         <TrickPlayView
           v-if="['play_trick', 'round_settle', 'game_over'].includes(v.phase)"
           :move="moves?.[index] ?? null"
@@ -220,6 +232,9 @@ header {
   .chip {
     padding: 2px 4px;
   }
+}
+.seat-meta {
+  margin-left: auto;
 }
 .nickname {
   margin-left: auto;

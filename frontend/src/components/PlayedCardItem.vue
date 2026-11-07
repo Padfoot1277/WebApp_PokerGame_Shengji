@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { suitToSymbol } from "../utils/card";
+import { useGameStore } from "../store/game";
+import { suitToSymbol, isTrumpCard } from "../utils/card";
 
 type Card = {
   id: number;
@@ -12,12 +13,17 @@ const props = defineProps<{
   card: Card;
 }>();
 
+const game = useGameStore();
 const suitInfo = computed(() => suitToSymbol(props.card.suit));
 </script>
 
 <template>
   <!-- 只读：disabled + pointer-events none，防止任何点击反馈 -->
-  <button class="played-card" disabled>
+  <button
+    class="played-card"
+    :class="{ trump: isTrumpCard(card, game.view?.trump) }"
+    disabled
+  >
     <span class="suit" :class="suitInfo.color">{{ suitInfo.symbol }}</span>
     <span class="rank">{{ card.rank }}</span>
   </button>
@@ -68,5 +74,8 @@ const suitInfo = computed(() => suitToSymbol(props.card.suit));
 .played-card:disabled {
   -webkit-text-fill-color: currentColor; /* Safari/Chrome 某些情况下需要 */
   color: #000;
+}
+.trump {
+  border: 2px solid #e5c969 !important;
 }
 </style>

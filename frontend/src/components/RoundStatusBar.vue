@@ -41,7 +41,7 @@ const trumpSuitInfo = computed(() => {
       <template v-if="starterSeat >= 0">
         <span class="tag">
           <strong>{{ phase === "call_trump" ? "定主起点" : "坐庄" }}</strong>
-          {{ seatLabel(starterSeat) }}
+          {{ v?.seats[starterSeat]?.name || seatLabel(starterSeat) }}
         </span>
 
         <span class="tag">

@@ -27,3 +27,29 @@ export function suitToSymbol(suit: string): {
       return { symbol: suit, color: "black" };
   }
 }
+
+export function isTrumpCard(
+  card: { suit: string; rank: string; suit_class?: string },
+  trump:
+    { levelRank: string; hasTrumpSuit: boolean; suit?: string } | undefined,
+) {
+  if (!trump || trump.levelRank === "Pending") return false;
+  if (
+    card.suit_class === "主牌" ||
+    ["BJ", "SJ", "大王", "小王"].includes(card.suit) ||
+    card.rank === trump.levelRank
+  )
+    return true;
+  const suits: Record<string, string> = {
+    黑桃: "S",
+    红桃: "H",
+    梅花: "C",
+    方块: "D",
+    "♠": "S",
+    "♥": "H",
+    "♣": "C",
+    "♦": "D",
+  };
+  const key = (s: string) => suits[s.replace(/\uFE0F/g, "")] || s;
+  return trump.hasTrumpSuit && key(card.suit) === key(trump.suit || "");
+}

@@ -1,3 +1,4 @@
+import { isTrumpCard } from "../../frontend/src/utils/card";
 import { unavailableCard, floatingFeedback } from "../../frontend/src/utils/play-feedback";
 import { showingLast, moveTag } from "../../frontend/src/utils/table";
 import { GameConnection } from "./connection";
@@ -410,7 +411,7 @@ function copyRoom() {
 }
 function selectPair() {
   if (!view || link.busy || previous) return;
-  const hand = (view.myHand ?? []).flat().filter(c => !unavailableCard(view, c, [...selected]));
+  const hand = (view.myHand ?? []).flat();
   const seed =
     hand.find((c) => selected.has(c.id)) ??
     hand.find((c) =>
@@ -783,7 +784,8 @@ function card(
     selectionLift +
     arrival -
     (dealIndex >= 0 ? 10 * (1 - easeOut(dealProgress)) : 0);
-  box(x, top, w, h, disabled ? "#dedbe2" : picked ? "#fff09c" : "#ffffff");
+  box(x, top, w, h, disabled ? "#f4f1f3" : picked ? "#fff09c" : "#ffffff");
+  if (isTrumpCard(c, view?.trump)) { ctx.strokeStyle = "#e5c969"; ctx.lineWidth = 2; ctx.stroke(); }
   if (picked) {
     ctx.strokeStyle = "#6652df";
     ctx.lineWidth = 2;
@@ -801,7 +803,7 @@ function card(
     x + 4,
     top + (h <= 44 ? 9 : 14),
     h <= 44 ? 10 : 18,
-    disabled ? "#9a95a1" : red ? "#dc4965" : "#30314f",
+    disabled ? (red ? "#c78996" : "#88838f") : red ? "#dc4965" : "#30314f",
     w - 6,
   );
   text(
@@ -809,13 +811,13 @@ function card(
     x + 4,
     top + (h <= 44 ? 27 : 40),
     h <= 44 ? 18 : 28,
-    disabled ? "#9a95a1" : red ? "#dc4965" : "#30314f",
+    disabled ? (red ? "#c78996" : "#88838f") : red ? "#dc4965" : "#30314f",
     w - 6,
   );
   if (interactive) {
     if (view?.usedTrumpIds.includes(c.id))
       text("亮", x + Math.max(15, w - 13), top + 10, 8, "#805a26", 12);
-    if (!disabled)
+    if (!link.busy && !previous)
       targets.push({
         x,
         y: hitTop,
@@ -1116,12 +1118,12 @@ function draw() {
       }
       avatar(seat, x! + 20, y! + 17);
       text(
-        `${relative(seat, s.mySeat)} · ${player.name || "等待入座"}${!player.online && player.uid ? " · 离线" : ""}`,
+        `${player.name || "等待入座"}${!player.online && player.uid ? " · 离线" : ""}`,
         x! + 38,
         y! + 15,
         16,
         "#30314f",
-        w! - 88,
+        w! - 170,
       );
       if (seat === turn(s) && s.phase !== "play_trick") {
         box(x! + w! - 70, y! + 5, 62, 23, "#ffe08a");
@@ -1174,12 +1176,12 @@ function draw() {
         const move = (showingLast(s, previous) ? s.trick.lastMoves : s.trick.playedMoves)[seat];
         const last = showingLast(s, previous);
         const tags = [
-          !previous && seat === turn(s) ? "⏳轮到" : "",
-          seat === (last ? s.trick.lastLeaderSeat : s.trick.leaderSeat) ? "🚩先手" : "",
-          move && seat === (last ? s.trick.winnerSeat : s.trick.biggerSeat) ? "👑最大" : "",
+          !previous && seat === turn(s) ? "⏳" : "",
+          seat === (last ? s.trick.lastLeaderSeat : s.trick.leaderSeat) ? "🚩" : "",
+          move && seat === (last ? s.trick.winnerSeat : s.trick.biggerSeat) ? "👑" : "",
           moveTag(move) ? moveTag(move)!.label : "",
         ].filter(Boolean);
-        text(tags.join(" · "), x! + 8, y! + 31, 10, "#6652df", w! - 16);
+        text(tags.join(" · "), x! + w! - 126, y! + 15, 12, "#6652df", 118);
 
         if (move) {
           const arrival = previous

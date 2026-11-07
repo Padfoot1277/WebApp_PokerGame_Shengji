@@ -182,6 +182,27 @@ func (r *Room) acceptConnection(c transport.Client) {
 		return
 	}
 
+	owned := false
+	for _, seat := range r.state.Seats {
+		if seat.UID == c.UID() {
+			owned = true
+		}
+	}
+	if !owned {
+		match := -1
+		count := 0
+		for i, seat := range r.state.Seats {
+			if seat.UID != "" && seat.Name == clientName(c) {
+				count++
+				match = i
+			}
+		}
+		if count == 1 && !r.state.Seats[match].Online {
+			if recovery, ok := c.(interface{ RecoverSeat(string) bool }); ok {
+				recovery.RecoverSeat(r.state.Seats[match].UID)
+			}
+		}
+	}
 	for old := range r.conns {
 		if old.UID() == c.UID() && old != c {
 			delete(r.conns, old)
