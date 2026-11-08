@@ -7,6 +7,7 @@ import {
   showingLast,
   moveTag,
   seatOffsets,
+  lobbySeatOrder,
 } from "../../frontend/src/utils/table";
 import { GameConnection } from "./connection";
 import { guide, relative, seatName, seatRole, teamName, turn } from "./model";
@@ -899,7 +900,7 @@ function drawSeat(
   }
   avatar(seat, x + 16, y + 17);
   text(
-    `${p.name || "等待入座"}${p.isBot ? " · 陪练" : ""}`,
+    `${p.name || "等待入座"}${p.isBot ? " · 机器人" : ""}`,
     x + 33,
     y + 17,
     14,
@@ -907,7 +908,7 @@ function drawSeat(
     136,
   );
   text(
-    `${relative(seat, s.mySeat)} · ${seatRole(s, seat)}${p.uid && !p.online ? " · 离线" : ""}`,
+    `${lobby ? seatName(seat) : relative(seat, s.mySeat)} · ${seatRole(s, seat)}${p.uid && !p.online ? " · 离线" : ""}`,
     x + 10,
     y + 38,
     11,
@@ -1240,7 +1241,7 @@ function draw() {
   if (!view) {
     box(12, 114, 366, 130, "#23785f");
     text("好牌，一起打。", 28, 154, 29, "#ffffff", 330);
-    text("和朋友同桌，也可以添加陪练。", 28, 192, 16, "#e7f0e9", 330);
+    text("和朋友同桌，也可以添加机器人。", 28, 192, 16, "#e7f0e9", 330);
     text("对家是队友 · 四人准备即开局", 28, 222, 13, "#e7f0e9", 330);
     box(12, 258, 366, 292, "#ffffff");
     text("开始一桌", 26, 285, 22);
@@ -1313,10 +1314,13 @@ function draw() {
         346,
       );
       const base = Math.max(0, s.mySeat);
-      seatOffsets.forEach((off, i) =>
+      const seatOrder = lobby
+        ? lobbySeatOrder
+        : seatOffsets.map((off) => (base + off) % 4);
+      seatOrder.forEach((seat, i) =>
         drawSeat(
           s,
-          (base + off) % 4,
+          seat,
           12 + (i % 2) * 189,
           196 + Math.floor(i / 2) * (lobby ? 122 : 108),
           lobby,
@@ -1332,7 +1336,7 @@ function draw() {
           354,
         );
         button(
-          "增加陪练",
+          "增加机器人",
           12,
           482,
           177,
@@ -1340,7 +1344,7 @@ function draw() {
           !busy && s.seats.some((p) => !p.uid),
         );
         button(
-          "减少陪练",
+          "减少机器人",
           201,
           482,
           177,
@@ -1358,7 +1362,7 @@ function draw() {
           true,
           "quiet",
         );
-        text("每次一位陪练，先添加先移除。", 18, 604, 13, "#65796f", 354);
+        text("顺时针：A1 → B1 → A2 → B2 → A1", 18, 604, 13, "#65796f", 354);
       } else {
         const cards = (s.myHand ?? []).flat(),
           layout = portraitLayout(logicalHeight),

@@ -117,7 +117,7 @@ function connect(b) {
   ws.onerror = () => ws.close();
 }
 for (let index = 0; index < 3; index++) {
-  const b = { index, name: '测试陪练' + (index + 1), pending: null, timer: null };
+  const b = { index, name: '测试机器人' + (index + 1), pending: null, timer: null };
   bots.push(b); connect(b);
 }
 const ticker = setInterval(() => {

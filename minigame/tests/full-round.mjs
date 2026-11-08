@@ -214,10 +214,10 @@ try {
     await wait(() => c.view, "initial snapshot");
     // Spectator layout uses a fixed compass; choose the matching visible seat.
     const positions = [
-      [230, 408],
-      [40, 408],
       [40, 286],
       [230, 286],
+      [230, 408],
+      [40, 408],
     ];
     const count = c.acks.length;
     c.touch(...positions[i]);

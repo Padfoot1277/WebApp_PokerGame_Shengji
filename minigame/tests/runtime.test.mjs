@@ -746,11 +746,11 @@ test("lobby practice controls send add and remove, with capacity guards", () => 
     ),
   };
   const { s, task } = connected({}, state);
-  s.button("增加陪练");
+  s.button("增加机器人");
   assert.equal(task.sent.at(-1).type, "room.add_bot");
   task.message({ type: "ack", reqId: task.sent.at(-1).reqId, ok: true });
   task.message({ type: "snapshot", state: { ...state, version: 2 } });
-  s.button("减少陪练");
+  s.button("减少机器人");
   assert.equal(task.sent.at(-1).type, "room.remove_bot");
   task.message({ type: "ack", reqId: task.sent.at(-1).reqId, ok: true });
   const count = task.sent.length;
@@ -758,8 +758,8 @@ test("lobby practice controls send add and remove, with capacity guards", () => 
     type: "snapshot",
     state: { ...state, version: 3, seats: snapshot().seats },
   });
-  s.button("增加陪练");
-  s.button("减少陪练");
+  s.button("增加机器人");
+  s.button("减少机器人");
   assert.equal(
     task.sent.length,
     count,
@@ -818,4 +818,33 @@ test("explicit server addresses remain visible instead of being silently replace
   assert(s.texts.some((t) => t.includes("局域网 IP")));
   s.button("连接设置");
   assert(s.rendered.some((t) => t.label === "ws://127.0.0.1:18088/ws"));
+});
+
+test("lobby clockwise seats preserve backend indices before and after sitting", () => {
+  const positions = [
+    [40, 286],
+    [230, 286],
+    [230, 408],
+    [40, 408],
+  ];
+  for (const mySeat of [-1, 2])
+    for (let seat = 0; seat < 4; seat++) {
+      if (seat === mySeat) continue;
+      const state = {
+        ...snapshot(),
+        phase: "lobby",
+        mySeat,
+        seats: snapshot().seats.map((p, i) => ({
+          ...p,
+          uid: i === mySeat ? "me" : "",
+          name: "",
+          ready: false,
+          team: i % 2,
+        })),
+      };
+      const { s, task } = connected({}, state);
+      s.touch(...positions[seat]);
+      assert.equal(task.sent.at(-1).type, "room.sit");
+      assert.equal(task.sent.at(-1).payload.seat, seat);
+    }
 });

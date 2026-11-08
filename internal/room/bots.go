@@ -23,7 +23,7 @@ type botResult struct {
 
 func (r *Room) changeBot(c transport.Client, add bool) *game.AppError {
 	if r.state.Phase != game.PhaseLobby {
-		return game.ErrStateWrongPhase.WithInfo("仅可在准备界面增减陪练")
+		return game.ErrStateWrongPhase.WithInfo("仅可在准备界面增减机器人")
 	}
 	if add {
 		empty := -1
@@ -39,8 +39,8 @@ func (r *Room) changeBot(c transport.Client, add bool) *game.AppError {
 		if empty < 0 {
 			return game.ErrInvalidPayload.WithInfo("房间已满，没有空位")
 		}
-		r.state.Seats[empty] = game.SeatState{UID: "bot:" + rand.Text(), Name: fmt.Sprintf("陪练%d", order+1), Team: game.TeamOfSeat(empty), IsBot: true, BotOrder: order + 1, Online: true}
-		r.notice = "已增加一位陪练"
+		r.state.Seats[empty] = game.SeatState{UID: "bot:" + rand.Text(), Name: fmt.Sprintf("机器人%d", order+1), Team: game.TeamOfSeat(empty), IsBot: true, BotOrder: order + 1, Online: true}
+		r.notice = "已增加一位机器人"
 	} else {
 		first := -1
 		for i, s := range r.state.Seats {
@@ -49,10 +49,10 @@ func (r *Room) changeBot(c transport.Client, add bool) *game.AppError {
 			}
 		}
 		if first < 0 {
-			return game.ErrInvalidPayload.WithInfo("房间内没有陪练")
+			return game.ErrInvalidPayload.WithInfo("房间内没有机器人")
 		}
 		r.state.Seats[first] = game.SeatState{Team: game.TeamOfSeat(first)}
-		r.notice = "已移除最先添加的陪练"
+		r.notice = "已移除最先添加的机器人"
 	}
 	r.state.Version++
 	return nil
@@ -169,6 +169,6 @@ func (r *Room) blockBot(result botResult, err error) {
 	r.botBlockedUID = result.uid
 	slog.Warn("bot action paused", "room", r.id, "event", result.action.Type, "error", err)
 	for c := range r.conns {
-		_ = c.SendJSON(game.NoticeMsg{Type: "notice", Message: "陪练暂时无法完成当前动作，请重连后重试"})
+		_ = c.SendJSON(game.NoticeMsg{Type: "notice", Message: "机器人暂时无法完成当前动作，请重连后重试"})
 	}
 }

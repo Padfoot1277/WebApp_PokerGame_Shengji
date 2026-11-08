@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 	"upgrade-lan/internal/game"
 )
@@ -110,6 +111,9 @@ func (r *Room) load() error {
 		r.receipts = make(map[string][]receipt)
 	}
 	for i := range r.state.Seats {
+		if r.state.Seats[i].IsBot {
+			r.state.Seats[i].Name = strings.ReplaceAll(r.state.Seats[i].Name, "陪练", "机器人")
+		}
 		r.state.Seats[i].Online = r.state.Seats[i].IsBot
 		r.state.Seats[i].Ready = false
 	}

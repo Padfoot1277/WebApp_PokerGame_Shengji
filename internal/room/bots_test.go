@@ -198,3 +198,17 @@ func TestLegacySaveExpiresByModificationTime(t *testing.T) {
 		t.Fatal("legacy expired data recovered")
 	}
 }
+
+func TestSavedBotNamesUseRobotWording(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	r := NewRoom("names")
+	r.state.Seats[0] = game.SeatState{UID: "bot:old", IsBot: true, Name: "陪练1", BotOrder: 1}
+	r.state.Seats[1] = game.SeatState{UID: "human", Name: "陪练爱好者", Team: 1}
+	if err := r.save(); err != nil {
+		t.Fatal(err)
+	}
+	restored := NewRoom("names")
+	if restored.loadErr != nil || restored.state.Seats[0].Name != "机器人1" || restored.state.Seats[1].Name != "陪练爱好者" {
+		t.Fatal("bot wording migration renamed a human or failed to rename a bot")
+	}
+}

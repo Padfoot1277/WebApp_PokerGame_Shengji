@@ -1,4 +1,6 @@
 import type { Move, ViewState } from "../types/view";
+// Row-major cells; clockwise around the grid follows the real seat indices.
+export const lobbySeatOrder = [0, 1, 3, 2] as const;
 export const seatOffsets = [2, 3, 1, 0] as const;
 export function showingLast(s: ViewState, review = false) {
   return (

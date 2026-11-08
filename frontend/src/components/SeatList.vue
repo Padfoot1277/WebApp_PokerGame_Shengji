@@ -1,9 +1,16 @@
 <script setup lang="ts">
 import { computed } from "vue";
 import { useGameStore } from "../store/game";
+import { lobbySeatOrder } from "../utils/table";
 import { seatName } from "../utils/seat";
 const game = useGameStore();
 const seats = computed(() => game.view?.seats ?? []);
+const seatEntries = computed(() =>
+  lobbySeatOrder.flatMap((index) => {
+    const seat = seats.value[index];
+    return seat ? [{ seat, index }] : [];
+  }),
+);
 const mySeat = computed(() => game.view?.mySeat ?? -1);
 const enabled = computed(() => game.wsStatus === "open" && !game.pending);
 const botCount = computed(() => seats.value.filter((s) => s.isBot).length);
@@ -14,7 +21,7 @@ const ready = computed(
 </script>
 <template>
   <section class="panel">
-    <h3>选择座位 <small>坐在对面的牌友是你的队友</small></h3>
+    <h3>选择座位</h3>
     <p v-if="seats.length" class="readiness" role="status">
       已入座 {{ occupied }} / 4 · 已准备 {{ ready }} / 4。
       {{
@@ -32,19 +39,19 @@ const ready = computed(
         :disabled="!enabled || occupied === 4"
         @click="game.sendEvent('room.add_bot', {})"
       >
-        增加陪练
+        增加机器人
       </button>
       <button
         :disabled="!enabled || botCount === 0"
         @click="game.sendEvent('room.remove_bot', {})"
       >
-        减少陪练
+        减少机器人
       </button>
-      <small>每次一位，按添加顺序移除；陪练自动准备及出牌。</small>
+      <small>每次一位，按添加顺序移除；机器人自动准备及出牌。</small>
     </div>
     <div class="seat-grid">
       <div
-        v-for="(seat, index) in seats"
+        v-for="{ seat, index } in seatEntries"
         :key="index"
         class="seat"
         :class="{ mine: index === mySeat }"
@@ -53,7 +60,7 @@ const ready = computed(
           >{{ seatName(index) }} {{ index === mySeat ? "· 我" : "" }}</strong
         >
         <p>
-          {{ seat.name || "等待牌友入座" }}{{ seat.isBot ? " · 陪练" : "" }}
+          {{ seat.name || "等待牌友入座" }}{{ seat.isBot ? " · 机器人" : "" }}
         </p>
         <small>{{
           seat.uid
@@ -90,6 +97,9 @@ const ready = computed(
         </div>
       </div>
     </div>
+    <p v-if="seats.length" class="seat-order">
+      出牌顺序：A1 → B1 → A2 → B2 → A1（顺时针）
+    </p>
     <p v-if="!seats.length">加入房间后选择座位，四人准备完成自动开始。</p>
   </section>
 </template>
@@ -100,6 +110,11 @@ const ready = computed(
   align-items: center;
   gap: 8px;
   margin-bottom: 14px;
+}
+.seat-order {
+  margin-top: 12px;
+  font-size: 13px;
+  color: #65796f;
 }
 .seat-grid {
   display: grid;
