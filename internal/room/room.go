@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log/slog"
 	"time"
+	"upgrade-lan/internal/bot"
 	"upgrade-lan/internal/game"
 	"upgrade-lan/internal/game/rules"
 	"upgrade-lan/internal/transport"
@@ -17,6 +18,16 @@ type incoming struct {
 }
 
 type Room struct {
+	botResults    chan botResult
+	botBusy       bool
+	botNext       time.Time
+	botCursor     int
+	botBlocked    int64
+	botBlockedUID string
+	botHistory    []bot.PublicTrick
+	historyRound  int
+	historyTrick  int
+
 	id string
 
 	join  chan transport.Client
@@ -58,7 +69,8 @@ func NewRoom(id string, recordEnabled ...bool) *Room {
 	st.Trump.CallerSeat = -1
 
 	r := &Room{
-		id:       id,
+		id:         id,
+		botResults: make(chan botResult, 1), botNext: time.Now().Add(time.Second),
 		receipts: make(map[string][]receipt), lastActive: time.Now(), done: make(chan struct{}),
 		join:  make(chan transport.Client),
 		leave: make(chan transport.Client, 32),
@@ -93,25 +105,38 @@ func (r *Room) Route(c transport.Client, typ string, raw json.RawMessage, reqID 
 
 func (r *Room) Run() {
 	defer close(r.done)
-	ticker := time.NewTicker(time.Minute)
+	ticker := time.NewTicker(250 * time.Millisecond)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
+		case now := <-ticker.C:
+			if r.expireRoom(now) {
+				return
+			}
+			r.scheduleBot(now)
 			if len(r.conns) == 0 && time.Since(r.lastActive) > 30*time.Minute {
 				if r.retire != nil {
 					r.retire()
 				}
 				return
 			}
+		case result := <-r.botResults:
+			if r.expireRoom(time.Now()) {
+				return
+			}
+			r.applyBot(result)
+
 		case c := <-r.join:
+			if r.expireRoom(time.Now()) {
+				_ = c.Close()
+				return
+			}
 			r.acceptConnection(c)
 
 		case c := <-r.leave:
 			if _, ok := r.conns[c]; !ok {
 				continue
 			}
-			r.lastActive = time.Now()
 			delete(r.conns, c)
 			for i := 0; i < 4; i++ {
 				if r.state.Seats[i].UID == c.UID() {
@@ -120,6 +145,9 @@ func (r *Room) Run() {
 				}
 			}
 			r.state.Version++
+			if err := r.save(); err != nil {
+				slog.Warn("room disconnect save failed", "room", r.id, "error", err)
+			}
 			r.broadcastSnapshot()
 			_ = c.Close()
 
@@ -127,13 +155,20 @@ func (r *Room) Run() {
 			if _, ok := r.conns[msg.c]; !ok {
 				continue
 			}
+			if r.expireRoom(time.Now()) {
+				return
+			}
 			r.lastActive = time.Now()
+			r.botNext = time.Now().Add(time.Second)
 			r.process(msg)
 		}
 	}
 }
 
 func (r *Room) handleEvent(c transport.Client, typ string, raw json.RawMessage) *game.AppError {
+	if typ == "room.add_bot" || typ == "room.remove_bot" {
+		return r.changeBot(c, typ == "room.add_bot")
+	}
 	evType, payload, err := ParseClientEvent(typ, raw)
 	if err != nil {
 		slog.Warn(err.Error())
@@ -192,7 +227,7 @@ func (r *Room) acceptConnection(c transport.Client) {
 		match := -1
 		count := 0
 		for i, seat := range r.state.Seats {
-			if seat.UID != "" && seat.Name == clientName(c) {
+			if !seat.IsBot && seat.UID != "" && seat.Name == clientName(c) {
 				count++
 				match = i
 			}
@@ -228,5 +263,8 @@ func (r *Room) acceptConnection(c transport.Client) {
 		"name":  clientName(c),
 	})
 	r.state.Version++
+	if err := r.save(); err != nil {
+		slog.Warn("room join save failed", "room", r.id, "error", err)
+	}
 	r.broadcastSnapshot()
 }

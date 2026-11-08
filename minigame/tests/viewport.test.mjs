@@ -16,26 +16,25 @@ vm.runInNewContext(
   { module, exports: module.exports },
 );
 const { viewport } = module.exports;
-test("entire table remains inside safe bounds at common landscape sizes", () => {
+test("portrait column respects safe areas and capsule on phones and tablets", () => {
   for (const [w, h, inset] of [
-    [640, 360, 0],
+    [320, 568, 0],
+    [375, 667, 0],
+    [390, 844, 0],
+    [430, 932, 0],
+    [768, 1024, 0],
     [844, 390, 44],
-    [960, 540, 0],
-    [1280, 720, 20],
-    [1024, 768, 0],
   ]) {
     const safe = { left: inset, right: w - inset, top: 0, bottom: h - 20 },
       capsule = { left: w - 100, right: w - 5, top: 5, bottom: 36 };
     const v = viewport(w, h, safe, capsule);
     assert(v.scale > 0);
+    assert.equal(v.width, 390);
+    assert(v.height >= 640 - 1e-8);
     assert(v.x >= safe.left);
     assert(v.y >= safe.top);
-    assert(
-      v.x + 960 * v.scale <= capsule.left ||
-        v.y >= capsule.bottom ||
-        v.y + 62 * v.scale <= capsule.top,
-    );
-    assert(v.x + 960 * v.scale <= safe.right + 1e-8);
-    assert(v.y + 540 * v.scale <= safe.bottom + 1e-8);
+    assert(v.y >= capsule.bottom);
+    assert(v.x + v.width * v.scale <= safe.right + 1e-8);
+    assert(v.y + v.height * v.scale <= safe.bottom + 1e-8);
   }
 });

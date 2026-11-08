@@ -66,8 +66,8 @@ function boot(options = {}) {
   const wx = {
     createCanvas: () => ({ getContext: () => ctx }),
     getSystemInfoSync: () => ({
-      windowWidth: 960,
-      windowHeight: 540,
+      windowWidth: 390,
+      windowHeight: 844,
       pixelRatio: 1,
       ...options.info,
     }),
@@ -183,8 +183,36 @@ function boot(options = {}) {
       });
       events.TouchEnd({});
     },
-    touch: (x, y) =>
-      events.TouchStart({ touches: [{ clientX: x, clientY: y }] }),
+    touch: (x, y) => {
+      events.TouchStart({
+        touches: [
+          {
+            clientX: x * transform.a + transform.e,
+            clientY: y * transform.d + transform.f,
+          },
+        ],
+      });
+      events.TouchEnd({});
+    },
+    drag: (x, y, dx, dy) => {
+      events.TouchStart({
+        touches: [
+          {
+            clientX: x * transform.a + transform.e,
+            clientY: y * transform.d + transform.f,
+          },
+        ],
+      });
+      events.TouchMove({
+        touches: [
+          {
+            clientX: dx * transform.a + transform.e,
+            clientY: dy * transform.d + transform.f,
+          },
+        ],
+      });
+      events.TouchEnd({});
+    },
   };
 }
 function snapshot() {
@@ -219,8 +247,8 @@ function snapshot() {
 }
 test("bundle starts without DOM and connects from lobby", () => {
   const s = boot();
-  assert(s.texts.includes("升 级 · 好友房"));
-  s.touch(720, 365);
+  assert(s.texts.includes("升级 · 好友房"));
+  s.button("加入房间");
   assert.equal(s.tasks.length, 1);
   assert(s.tasks[0].options.url.startsWith("ws://"));
   s.tasks[0].message({
@@ -253,7 +281,7 @@ test("rules modal blocks table touches; invitation copies only room code", () =>
   const s = boot();
   s.button("规则");
   assert(s.rendered.some((t) => t.label === "从入座到开局"));
-  s.touch(720, 365);
+  s.button("加入房间");
   assert.equal(s.tasks.length, 0);
   s.button("下一页");
   assert(s.rendered.some((t) => t.label === "定主、扣底与攻改"));
@@ -284,13 +312,13 @@ test("leaving an active round requires confirmation and cancellation keeps conne
 });
 test("touch sends server command; foreground restores token", () => {
   const s = boot();
-  s.touch(720, 365);
+  s.button("加入房间");
   const task = s.tasks[0];
   task.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
   task.message({ type: "snapshot", state: snapshot() });
-  s.touch(40, 400);
+  s.touch(38, 480);
   s.events.TouchEnd({});
-  s.touch(850, 482);
+  s.button("出牌");
   assert.equal(task.sent[0].type, "game.play_cards");
   assert.equal(JSON.stringify(task.sent[0].payload.cardIds), "[1]");
   assert(task.sent[0].reqId);
@@ -302,7 +330,7 @@ test("touch sends server command; foreground restores token", () => {
 
 test("failed unopened tasks are not closed and stale errors do not retry twice", () => {
   const s = boot();
-  s.touch(720, 365);
+  s.button("加入房间");
   const task = s.tasks[0];
   task.error("connection refused");
   task.error("connection refused");
@@ -349,7 +377,7 @@ test("late open from a replaced task is closed; manual recovery retains request 
   const old = s.tasks[0];
   old.message({ type: "hello", token: "signed", name: "牌友", uid: "one" });
   old.message({ type: "snapshot", state: snapshot() });
-  s.touch(40, 400);
+  s.touch(38, 480);
   s.button("出牌");
   const id = old.sent[0].reqId;
   old.error("connection refused");
@@ -387,13 +415,14 @@ test("long moves expand without accidental submission and error messages remain 
     },
   };
   t.message({ type: "snapshot", state });
-  s.touch(200, 170);
-  assert(s.rendered.some((t) => t.label === "对家 · 出牌详情"));
-  assert(s.rendered.some((t) => t.label === "20 张 · 黑桃"));
+  s.touch(40, 260);
+  assert(s.rendered.some((t) => t.label === "出牌详情"));
+  assert(s.rendered.some((t) => t.label === "对家 · 20 张"));
   assert.equal(t.sent.length, 0);
   s.button("关闭");
   t.message({ type: "error", message: "这不是你的回合" });
-  s.touch(50, 533);
+  s.button("菜单");
+  s.button("消息记录");
   assert(s.rendered.some((t) => t.label === "牌桌消息"));
   assert(s.rendered.some((t) => t.label === "这不是你的回合"));
 });
@@ -422,7 +451,7 @@ test("spectators see public settlement but cannot start next round", () => {
   assert(s.rendered.some((t) => t.label === "125"));
   assert(s.rendered.some((t) => t.label.includes("抠底实得 20 分")));
   assert(!s.rendered.some((t) => t.label === "下一局"));
-  assert(s.rendered.some((t) => t.label === "等待牌友开启下一局，你正在观战"));
+  assert(s.rendered.some((t) => t.label.includes("开启下一局")));
   assert(!s.rendered.some((t) => t.label.includes("你的座位已保留")));
   assert.equal(t.sent.length, 0);
 });
@@ -461,7 +490,7 @@ test("history exits when the next lead clears lastMoves without changing trick i
   state.trick.lastMoves = [null, null, null, null];
   t.message({ type: "snapshot", state });
   assert(!s.rendered.some((t) => t.label.includes("上一墩回放")));
-  s.touch(40, 400);
+  s.touch(38, 480);
   s.button("出牌");
   assert.equal(t.sent.length, 1);
 });
@@ -480,11 +509,13 @@ const allPlays = (s) => s.audioContexts.flatMap((c) => c.plays);
 const motionFrames = (s) =>
   [...s.timers.values()].filter((t) => t.delay === 33);
 test("lobby and room settings are reachable; audio opt-in previews and persists", () => {
-  const s = boot({ storage: [[preferenceKey, { sound: false, vibration: false }]] });
+  const s = boot({
+    storage: [[preferenceKey, { sound: false, vibration: false }]],
+  });
   s.button("声音与动效");
   assert(s.rendered.some((t) => t.label === "声音与动效"));
   assert.equal(s.audioContexts.length, 0);
-  s.touch(710, 180);
+  s.touch(80, 236);
   s.events.TouchEnd({});
   assert.equal(s.storage.get(preferenceKey).sound, true);
   assert.equal(s.audioContexts.length, 1);
@@ -493,7 +524,7 @@ test("lobby and room settings are reachable; audio opt-in previews and persists"
     1,
   );
   assert.equal(s.audioOptions[0].obeyMuteSwitch, true);
-  s.touch(710, 344);
+  s.touch(80, 452);
   s.events.TouchEnd({});
   assert.equal(s.storage.get(preferenceKey).reducedMotion, true);
   assert.equal(motionFrames(s).length, 0);
@@ -525,7 +556,7 @@ test("reduced motion schedules no animation; hide cancels motion and resume neve
     state,
   );
   s.advance(1000);
-  s.touch(40, 400);
+  s.touch(38, 480);
   s.events.TouchEnd({});
   assert.equal(motionFrames(s).length, 0);
   const moved = {
@@ -557,7 +588,7 @@ test("reduced motion schedules no animation; hide cancels motion and resume neve
   assert.equal(s.vibrations.length, 0);
   assert.equal(motionFrames(s).length, 0);
   const active = connected();
-  active.s.touch(40, 400);
+  active.s.touch(38, 480);
   assert(motionFrames(active.s).length > 0);
   active.s.events.Hide({});
   assert.equal(motionFrames(active.s).length, 0);
@@ -615,7 +646,7 @@ test("snapshots behind a modal never play feedback or enable underlying buttons"
   assert.equal(allPlays(s).length, before);
   assert.equal(s.vibrations.length, 0);
   assert.equal(motionFrames(s).length, 0);
-  s.touch(200, 510);
+  s.touch(40, 480);
   s.events.TouchEnd({});
   assert.equal(task.sent.length, 0);
   s.button("关闭");
@@ -648,12 +679,12 @@ test("drag sounds are throttled and stable card hit boxes ignore intermediate an
   );
   s.advance(1000);
   const start = allPlays(s).length;
-  s.touch(40, 400);
+  s.events.TouchStart({ touches: [{ clientX: 38, clientY: 480 }] });
   s.advance(33);
-  s.events.TouchMove({ touches: [{ clientX: 110, clientY: 400 }] });
+  s.events.TouchMove({ touches: [{ clientX: 82, clientY: 480 }] });
   s.advance(33);
-  s.events.TouchMove({ touches: [{ clientX: 165, clientY: 400 }] });
-  s.events.TouchMove({ touches: [{ clientX: 110, clientY: 400 }] });
+  s.events.TouchMove({ touches: [{ clientX: 126, clientY: 480 }] });
+  s.events.TouchMove({ touches: [{ clientX: 82, clientY: 480 }] });
   s.events.TouchEnd({});
   assert.equal(
     allPlays(s).length,
@@ -665,34 +696,126 @@ test("drag sounds are throttled and stable card hit boxes ignore intermediate an
   assert.equal(JSON.stringify(task.sent.at(-1).payload.cardIds), "[1,2,3]");
 });
 
- test("record option only configures newly created rooms", () => {
+test("record option only configures newly created rooms", () => {
   for (const create of [false, true]) {
-   const s = boot();
-   s.button("新房记牌器：关闭");
-   s.button(create ? "创建房间" : "加入房间");
-   const url = new URL(s.tasks[0].options.url);
-   assert.equal(url.searchParams.get("record"), create ? "1" : "0");
+    const s = boot();
+    s.button("新房记牌器：关闭");
+    s.button(create ? "创建房间" : "加入房间");
+    const url = new URL(s.tasks[0].options.url);
+    assert.equal(url.searchParams.get("record"), create ? "1" : "0");
   }
- });
+});
 
 test("public score toast reaches players and spectators even while room menu is open", () => {
- for (const mySeat of [0,1,2,3,-1]) {
-  const state = { ...snapshot(), mySeat, myHand: mySeat < 0 ? null : snapshot().myHand };
-  const { s, task } = connected({}, state);
-  s.button("菜单");
-  task.message({ type: "snapshot", state: { ...state, version: 2, points: 20 } });
-  assert(s.rendered.some(t => t.label === "打家 +20 分"));
-  s.advance(2300);
-  assert(!s.rendered.some(t => t.label === "打家 +20 分"));
- }
+  for (const mySeat of [0, 1, 2, 3, -1]) {
+    const state = {
+      ...snapshot(),
+      mySeat,
+      myHand: mySeat < 0 ? null : snapshot().myHand,
+    };
+    const { s, task } = connected({}, state);
+    s.button("菜单");
+    task.message({
+      type: "snapshot",
+      state: { ...state, version: 2, points: 20 },
+    });
+    assert(s.rendered.some((t) => t.label === "打家 +20 分"));
+    s.advance(2300);
+    assert(!s.rendered.some((t) => t.label === "打家 +20 分"));
+  }
 });
 
 test("play errors float briefly instead of occupying the bottom strip", () => {
- const { s, task } = connected();
- task.message({ type: "error", message: "请跟足黑桃" });
- const notices = s.rendered.filter(t => t.label === "请跟足黑桃");
- assert.equal(notices.length, 1);
- assert.equal(notices[0].x, 278);
- s.advance(3300);
- assert(!s.rendered.some(t => t.label === "请跟足黑桃"));
+  const { s, task } = connected();
+  task.message({ type: "error", message: "请跟足黑桃" });
+  const notices = s.rendered.filter((t) => t.label === "请跟足黑桃");
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].x, 30);
+  s.advance(3300);
+  assert(!s.rendered.some((t) => t.label === "请跟足黑桃"));
+});
+
+test("lobby practice controls send add and remove, with capacity guards", () => {
+  const state = {
+    ...snapshot(),
+    phase: "lobby",
+    seats: snapshot().seats.map((p, i) =>
+      i < 2
+        ? { ...p, isBot: i === 1, ready: false }
+        : { ...p, uid: "", ready: false },
+    ),
+  };
+  const { s, task } = connected({}, state);
+  s.button("增加陪练");
+  assert.equal(task.sent.at(-1).type, "room.add_bot");
+  task.message({ type: "ack", reqId: task.sent.at(-1).reqId, ok: true });
+  task.message({ type: "snapshot", state: { ...state, version: 2 } });
+  s.button("减少陪练");
+  assert.equal(task.sent.at(-1).type, "room.remove_bot");
+  task.message({ type: "ack", reqId: task.sent.at(-1).reqId, ok: true });
+  const count = task.sent.length;
+  task.message({
+    type: "snapshot",
+    state: { ...state, version: 3, seats: snapshot().seats },
+  });
+  s.button("增加陪练");
+  s.button("减少陪练");
+  assert.equal(
+    task.sent.length,
+    count,
+    "full human room must disable both controls",
+  );
+});
+
+test("portrait hand scroll reveals the 33rd card without selecting during swipe", () => {
+  const state = snapshot();
+  state.phase = "bottom";
+  state.bottomOwnerSeat = 0;
+  state.myHand = [
+    Array.from({ length: 33 }, (_, i) => ({
+      id: i + 1,
+      suit: "♠️",
+      rank: String((i % 9) + 2),
+      suit_class: "主牌",
+    })),
+  ];
+  const { s, task } = connected({}, state);
+  s.drag(360, 680, 360, 480);
+  assert(s.rendered.some((t) => t.label.startsWith("已选 0 / 33")));
+  s.touch(38, 670);
+  assert(s.rendered.some((t) => t.label.startsWith("已选 1 / 33")));
+  assert.equal(task.sent.length, 0);
+  s.button("清空选牌");
+  assert(s.rendered.some((t) => t.label.startsWith("已选 0 / 33")));
+});
+
+test("portrait rules scroll stays modal and release after a swipe cannot press a button", () => {
+  const s = boot({ info: { windowWidth: 320, windowHeight: 568 } });
+  s.button("规则");
+  s.drag(90, 300, 90, 180);
+  assert.equal(s.tasks.length, 0);
+  s.button("关闭");
+  s.button("加入房间");
+  assert.equal(s.tasks.length, 1);
+});
+
+test("shipped game requests portrait orientation", () => {
+  assert.equal(
+    JSON.parse(
+      readFileSync(new URL("../dist/game.json", import.meta.url), "utf8"),
+    ).deviceOrientation,
+    "portrait",
+  );
+});
+test("explicit server addresses remain visible instead of being silently replaced", () => {
+  const s = boot({ storage: [["shengji-server", "ws://127.0.0.1:18088/ws"]] });
+  s.button("加入房间");
+  assert.equal(
+    s.tasks.length,
+    0,
+    "loopback is explained as unavailable on a phone",
+  );
+  assert(s.texts.some((t) => t.includes("局域网 IP")));
+  s.button("连接设置");
+  assert(s.rendered.some((t) => t.label === "ws://127.0.0.1:18088/ws"));
 });

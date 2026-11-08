@@ -16,11 +16,13 @@ const (
 )
 
 type SeatState struct {
-	Name   string `json:"name"`
-	UID    string `json:"uid"`
-	Ready  bool   `json:"ready"`
-	Online bool   `json:"online"`
-	Team   int    `json:"team"` // 0 or 1（固定对家映射）
+	IsBot    bool   `json:"isBot"`
+	BotOrder uint64 `json:"-"`
+	Name     string `json:"name"`
+	UID      string `json:"uid"`
+	Ready    bool   `json:"ready"`
+	Online   bool   `json:"online"`
+	Team     int    `json:"team"` // 0 or 1（固定对家映射）
 
 	HandCount int          `json:"handCount"` // 对外公开：只显示数量
 	Hand      []rules.Card `json:"-"`         // 后端私有：不直接出现在snapshot里

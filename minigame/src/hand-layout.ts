@@ -1,15 +1,32 @@
-// Keep ranks readable in the space beside the action rail, including 33-card hands.
-export function handLayout(count: number) {
-  const rows = count > 13 ? 2 : 1;
-  const columns = Math.max(1, Math.ceil(count / rows));
-  const step = Math.min(56, 710 / columns);
+// Non-overlapping cards grouped by suit, with vertical scrolling for long hands.
+export function handLayout(
+  count: number,
+  top = 444,
+  groups: readonly number[] = [count],
+) {
+  const columns = 8,
+    step = 44,
+    slots: { x: number; y: number; w: number; h: number }[] = [],
+    headers: { y: number }[] = [];
+  let y = top + 12;
+  for (const size of groups) {
+    headers.push({ y });
+    y += 16;
+    for (let i = 0; i < size; i++)
+      slots.push({
+        x: 20 + (i % columns) * step,
+        y: y + Math.floor(i / columns) * 76,
+        w: 40,
+        h: 64,
+      });
+    y += Math.ceil(size / columns) * 76 + 8;
+  }
   return {
-    rows, columns, step,
-    slot: (i: number) => ({
-      x: 28 + (i % columns) * step,
-      y: rows === 2 ? 354 + Math.floor(i / columns) * 84 : 390,
-      w: Math.min(58, step + 6),
-      h: 80,
-    }),
+    rows: Math.ceil(count / columns),
+    columns,
+    step,
+    headers,
+    contentHeight: y - top,
+    slot: (i: number) => slots[i]!,
   };
 }

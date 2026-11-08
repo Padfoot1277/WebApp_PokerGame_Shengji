@@ -35,6 +35,9 @@ func (r *Room) process(msg incoming) {
 	var result receipt
 	for _, old := range r.receipts[msg.c.UID()] {
 		if old.ID == msg.reqID {
+			if err := r.save(); err != nil {
+				slog.Warn("room activity save failed", "room", r.id, "error", err)
+			}
 			r.sendReceipt(msg.c, old)
 			r.sendSnapshot(msg.c)
 			return

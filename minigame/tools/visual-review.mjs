@@ -15,7 +15,7 @@ const bundle = readFileSync(
   "utf8",
 );
 export function render(state, buttons = [], opts = {}) {
-  const canvas = createCanvas(960, 540),
+  const canvas = createCanvas(390, 844),
     raw = canvas.getContext("2d"),
     events = {},
     drawn = [],
@@ -42,21 +42,27 @@ export function render(state, buttons = [], opts = {}) {
     }
     now = end;
   };
+  let transform = { a: 1, d: 1, e: 0, f: 0 };
   const ctx = new Proxy(raw, {
     get: (t, k) =>
-      k === "fillText"
-        ? (label, x, y, ...rest) => {
-            drawn.push({ label, x, y });
-            return t.fillText(label, x, y, ...rest);
+      k === "setTransform"
+        ? (a, b, c, d, e, f) => {
+            transform = { a, d, e, f };
+            return raw.setTransform(a, b, c, d, e, f);
           }
-        : k === "clearRect"
-          ? (...a) => {
-              drawn.length = 0;
-              return t.clearRect(...a);
+        : k === "fillText"
+          ? (label, x, y, ...rest) => {
+              drawn.push({ label, x, y });
+              return t.fillText(label, x, y, ...rest);
             }
-          : typeof t[k] === "function"
-            ? t[k].bind(t)
-            : t[k],
+          : k === "clearRect"
+            ? (...a) => {
+                drawn.length = 0;
+                return t.clearRect(...a);
+              }
+            : typeof t[k] === "function"
+              ? t[k].bind(t)
+              : t[k],
     set: (t, k, v) => {
       t[k] = v;
       return true;
@@ -77,10 +83,12 @@ export function render(state, buttons = [], opts = {}) {
         },
       }),
     getSystemInfoSync: () => ({
-      windowWidth: 960,
-      windowHeight: 540,
+      windowWidth: 390,
+      windowHeight: 844,
       pixelRatio: 1,
+      ...opts.info,
     }),
+    getMenuButtonBoundingClientRect: () => opts.capsule,
     getStorageSync: (k) => storage.get(k),
     setStorageSync: (k, v) => storage.set(k, v),
     removeStorageSync: (k) => storage.delete(k),
@@ -119,7 +127,16 @@ export function render(state, buttons = [], opts = {}) {
     clearTimeout: (id) => timers.delete(id),
   });
   const touch = (x, y) => {
-    events.TouchStart({ touches: [{ clientX: x, clientY: y }] });
+    events.TouchStart({
+      touches: [
+        {
+          clientX:
+            (x * transform.a + transform.e) / (opts.info?.pixelRatio || 1),
+          clientY:
+            (y * transform.d + transform.f) / (opts.info?.pixelRatio || 1),
+        },
+      ],
+    });
     events.TouchEnd({});
   };
   const button = (label) => {
@@ -243,15 +260,15 @@ const cases = [
   ],
   ["22-trick-result", completeTrick, [], { from: scene(), elapsed: 200 }],
   ["23-upgrade", upgrade, [], { from: scene(), elapsed: 150 }],
-  ["24-selected", scene(), [], { touch: [40, 408], elapsed: 50 }],
+  ["24-selected", scene(), [], { touch: [40, 480], elapsed: 50 }],
 ];
-const gallery = createCanvas(1920, Math.ceil(cases.length / 2) * 540),
+const gallery = createCanvas(780, Math.ceil(cases.length / 2) * 844),
   g = gallery.getContext("2d");
 for (let i = 0; i < cases.length; i++) {
   const [name, state, buttons, opts] = cases[i],
     { canvas } = render(state, buttons, opts);
   writeFileSync(new URL(`${name}.png`, output), canvas.toBuffer("image/png"));
-  g.drawImage(canvas, (i % 2) * 960, Math.floor(i / 2) * 540);
+  g.drawImage(canvas, (i % 2) * 390, Math.floor(i / 2) * 844);
 }
 writeFileSync(new URL("gallery.png", output), gallery.toBuffer("image/png"));
 // Frames at different times prove that effects finish; static fixture snapshots do not.
@@ -259,13 +276,13 @@ for (const [name, state, opts] of [
   ["deal", freshDeal, { from: scene("lobby") }],
   ["upgrade", upgrade, { from: scene() }],
 ]) {
-  const strip = createCanvas(1920, 1080),
+  const strip = createCanvas(780, 1688),
     g = strip.getContext("2d");
   [0, 100, 300, 900].forEach((elapsed, i) => {
     g.drawImage(
       render(state, [], { ...opts, elapsed }).canvas,
-      (i % 2) * 960,
-      Math.floor(i / 2) * 540,
+      (i % 2) * 390,
+      Math.floor(i / 2) * 844,
     );
   });
   writeFileSync(
@@ -274,3 +291,39 @@ for (const [name, state, opts] of [
   );
 }
 console.log(`Rendered ${cases.length} scenes: ${fileURLToPath(output)}`);
+
+for (const [name, info, capsule] of [
+  [
+    "portrait-small",
+    {
+      windowWidth: 320,
+      windowHeight: 568,
+      pixelRatio: 1,
+      safeArea: { left: 0, right: 320, top: 20, bottom: 548 },
+    },
+    { left: 220, right: 310, top: 24, bottom: 54 },
+  ],
+  [
+    "portrait-notch",
+    {
+      windowWidth: 390,
+      windowHeight: 844,
+      pixelRatio: 1,
+      safeArea: { left: 0, right: 390, top: 44, bottom: 810 },
+    },
+    { left: 280, right: 380, top: 48, bottom: 80 },
+  ],
+  [
+    "portrait-tablet",
+    {
+      windowWidth: 768,
+      windowHeight: 1024,
+      pixelRatio: 1,
+      safeArea: { left: 0, right: 768, top: 24, bottom: 1004 },
+    },
+    null,
+  ],
+]) {
+  const { canvas } = render(scene("bottom"), [], { info, capsule });
+  writeFileSync(new URL(`${name}.png`, output), canvas.toBuffer("image/png"));
+}

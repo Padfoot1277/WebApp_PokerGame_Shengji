@@ -14,6 +14,7 @@ export interface Card {
   suit_class?: string;
 }
 export interface Seat {
+  isBot?: boolean;
   uid: string;
   name: string;
   online: boolean;

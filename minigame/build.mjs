@@ -19,7 +19,7 @@ await writeFile(
   new URL("./dist/game.json", import.meta.url),
   JSON.stringify(
     {
-      deviceOrientation: "landscape",
+      deviceOrientation: "portrait",
       networkTimeout: { connectSocket: 10000 },
     },
     null,

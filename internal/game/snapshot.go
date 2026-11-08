@@ -57,6 +57,7 @@ type ViewState struct {
 }
 
 type SeatView struct {
+	IsBot     bool   `json:"isBot"`
 	Name      string `json:"name"`
 	UID       string `json:"uid"`
 	Ready     bool   `json:"ready"`
@@ -95,6 +96,7 @@ func MakeView(st GameState, uid string) ViewState {
 	for i := 0; i < 4; i++ {
 		seats[i] = SeatView{
 			UID:       st.Seats[i].UID,
+			IsBot:     st.Seats[i].IsBot,
 			Name:      st.Seats[i].Name,
 			Ready:     st.Seats[i].Ready,
 			Online:    st.Seats[i].Online,

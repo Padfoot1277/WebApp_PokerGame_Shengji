@@ -14,7 +14,20 @@ func main() {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	rm := room.NewManager() // room 不再需要 hub/ws
+	rm := room.NewManager()
+	cleanup := func() {
+		if err := rm.CleanupExpired(time.Now()); err != nil {
+			log.Println("expired room cleanup:", err)
+		}
+	}
+	cleanup()
+	go func() {
+		ticker := time.NewTicker(time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			cleanup()
+		}
+	}()
 
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		// ws 只依赖一个 Router 接口（rm 实现它）

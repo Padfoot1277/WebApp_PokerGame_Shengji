@@ -3,6 +3,21 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
+import { buildSync } from "esbuild";
+import { fileURLToPath } from "node:url";
+const layoutModule = { exports: {} };
+vm.runInNewContext(
+  buildSync({
+    entryPoints: [
+      fileURLToPath(new URL("../src/hand-layout.ts", import.meta.url)),
+    ],
+    bundle: true,
+    format: "cjs",
+    write: false,
+  }).outputFiles[0].text,
+  { module: layoutModule, exports: layoutModule.exports },
+);
+const { handLayout } = layoutModule.exports;
 
 const endpoint = process.env.SHENGJI_TEST_URL;
 if (!endpoint)
@@ -65,8 +80,8 @@ function boot(index) {
   const wx = {
     createCanvas: () => ({ getContext: () => ctx }),
     getSystemInfoSync: () => ({
-      windowWidth: 960,
-      windowHeight: 540,
+      windowWidth: 390,
+      windowHeight: 844,
       pixelRatio: 1,
     }),
     getStorageSync: (k) => storage.get(k),
@@ -129,7 +144,15 @@ function boot(index) {
     events.TouchStart({ touches: [{ clientX: x, clientY: y }] });
     events.TouchEnd({});
   };
+  client.drag = (x, y, dx, dy) => {
+    events.TouchStart({ touches: [{ clientX: x, clientY: y }] });
+    events.TouchMove({ touches: [{ clientX: dx, clientY: dy }] });
+    events.TouchEnd({});
+  };
   client.button = (label) => {
+    if (label === "申请弃局") {
+      client.button("菜单");
+    }
     const t = texts.find((t) => t.label === label);
     assert(t, `Missing button ${label}; phase=${client.view?.phase}`);
     client.touch(t.x + 8, t.y);
@@ -156,16 +179,32 @@ async function action(c, label) {
 }
 function select(c, ids) {
   const hand = c.view.myHand.flat();
-  const rows = hand.length > 25 ? 2 : 1;
-  const columns = rows === 2 ? Math.ceil(hand.length / 2) : hand.length;
-  const step = Math.min(rows === 2 ? 52 : 42, 850 / Math.max(1, columns));
+  const layout = handLayout(
+    hand.length,
+    444,
+    c.view.myHand.map((g) => g.length),
+  );
+  const maxScroll = Math.max(0, layout.contentHeight - 282);
+  // Scroll to the top without selecting cards, then bring each target into view.
+  for (let i = 0; i < Math.ceil(maxScroll / 180) + 1; i++)
+    c.drag(360, 490, 360, 670);
+  let scroll = 0;
   for (const id of ids) {
-    const i = hand.findIndex((card) => card.id === id);
-    assert(i >= 0);
-    c.touch(
-      33 + (i % columns) * step,
-      rows === 2 ? 398 + Math.floor(i / columns) * 44 : 405,
-    );
+    const index = hand.findIndex((card) => card.id === id);
+    assert(index >= 0);
+    const slot = layout.slot(index);
+    const desired = Math.min(maxScroll, Math.max(0, slot.y - 480));
+    while (Math.abs(desired - scroll) > 0.01) {
+      const delta = Math.max(-180, Math.min(180, desired - scroll));
+      c.drag(
+        360,
+        delta > 0 ? 670 : 490,
+        360,
+        delta > 0 ? 670 - delta : 490 - delta,
+      );
+      scroll += delta;
+    }
+    c.touch(slot.x + 14, slot.y - scroll + 30);
   }
 }
 try {
@@ -175,10 +214,10 @@ try {
     await wait(() => c.view, "initial snapshot");
     // Spectator layout uses a fixed compass; choose the matching visible seat.
     const positions = [
-      [344, 318],
-      [672, 254],
-      [344, 216],
-      [38, 254],
+      [230, 408],
+      [40, 408],
+      [40, 286],
+      [230, 286],
     ];
     const count = c.acks.length;
     c.touch(...positions[i]);

@@ -113,4 +113,15 @@ const offline = computed(() =>
 .guide .offline {
   color: #a05c25;
 }
+@media (max-width: 759px) {
+  .guide {
+    padding: 8px 12px;
+  }
+  .guide strong {
+    font-size: 16px;
+  }
+  .guide p {
+    font-size: 12px;
+  }
+}
 </style>

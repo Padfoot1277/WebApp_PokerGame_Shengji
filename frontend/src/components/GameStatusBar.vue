@@ -112,6 +112,18 @@ const teamLabel = (index: number) =>
   white-space: nowrap;
 }
 @media (max-width: 480px) {
+  .panel {
+    padding: 6px 10px;
+  }
+  .round {
+    font-size: 14px;
+  }
+  .round-num {
+    font-size: 17px;
+  }
+  .teams {
+    margin-left: auto;
+  }
   .row {
     gap: 8px;
     flex-wrap: wrap;

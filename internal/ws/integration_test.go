@@ -201,3 +201,46 @@ func TestMalformedMessagesCannotBypassRateLimit(t *testing.T) {
 		}
 	}
 }
+
+func TestRoomBotsThroughRealWebSocket(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	hub := ws.NewHub()
+	go hub.Run()
+	manager := room.NewManager()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { ws.ServeWS(hub, manager, w, r) }))
+	defer server.Close()
+	p := connect(t, "ws"+strings.TrimPrefix(server.URL, "http")+"?room=with-bots&name=human")
+	defer p.socket.Close()
+	wait(t, func() bool { return p.snapshot().RoomID != "" })
+	p.send(t, "sit", "room.sit", map[string]int{"seat": 0})
+	for _, id := range []string{"bot1", "bot2", "bot3"} {
+		p.send(t, id, "room.add_bot", struct{}{})
+	}
+	wait(t, func() bool {
+		v := p.snapshot()
+		return v.Seats[1].IsBot && v.Seats[1].Ready && v.Seats[2].Ready && v.Seats[3].Ready
+	})
+	v := p.snapshot()
+	first, second := v.Seats[1].UID, v.Seats[2].UID
+	if len(v.MyHand) != 0 {
+		t.Fatal("lobby exposed a hand")
+	}
+	p.send(t, "remove", "room.remove_bot", struct{}{})
+	wait(t, func() bool { return p.snapshot().Seats[1].UID == "" })
+	p.send(t, "replace", "room.add_bot", struct{}{})
+	wait(t, func() bool {
+		v := p.snapshot()
+		return v.Seats[1].Ready && v.Seats[1].UID != first && v.Seats[2].UID == second
+	})
+	p.send(t, "ready", "room.ready", struct{}{})
+	wait(t, func() bool { return p.snapshot().Phase != game.PhaseLobby })
+	v = p.snapshot()
+	if len(v.MyHand) == 0 {
+		t.Fatal("human did not receive own hand")
+	}
+	for _, seat := range v.Seats {
+		if seat.IsBot && seat.HandCount != 25 {
+			t.Fatal("bot did not receive cards")
+		}
+	}
+}

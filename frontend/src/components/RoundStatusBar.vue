@@ -203,4 +203,16 @@ const trumpSuitInfo = computed(() => {
   display: inline-flex;
   align-items: center;
 }
+@media (max-width: 759px) {
+  .panel {
+    padding: 8px 10px;
+  }
+  .info-line {
+    gap: 4px;
+  }
+  .tag {
+    font-size: 12px;
+    padding: 1px 6px;
+  }
+}
 </style>

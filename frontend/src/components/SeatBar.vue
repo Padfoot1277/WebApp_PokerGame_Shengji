@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useGameStore } from "../store/game";
 import TrickPlayView from "./TrickPlayView.vue";
-import { showingLast, moveTag } from "../utils/table";
+import { showingLast, moveTag, seatOffsets } from "../utils/table";
 const game = useGameStore();
 const previous = computed({
   get: () => game.reviewPrevious,
@@ -14,7 +14,7 @@ const v = computed(() => game.view);
 const canReview = computed(
   () => v.value?.trick.lastMoves.some(Boolean) ?? false,
 );
-const positions = [2, 3, 1, 0];
+const positions = seatOffsets;
 const order = computed(() =>
   positions.map(
     (offset) => (Math.max(0, v.value?.mySeat ?? 0) + offset + 4) % 4,

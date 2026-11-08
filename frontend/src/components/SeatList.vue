@@ -6,6 +6,7 @@ const game = useGameStore();
 const seats = computed(() => game.view?.seats ?? []);
 const mySeat = computed(() => game.view?.mySeat ?? -1);
 const enabled = computed(() => game.wsStatus === "open" && !game.pending);
+const botCount = computed(() => seats.value.filter((s) => s.isBot).length);
 const occupied = computed(() => seats.value.filter((s) => s.uid).length);
 const ready = computed(
   () => seats.value.filter((s) => s.uid && s.online && s.ready).length,
@@ -26,6 +27,21 @@ const ready = computed(
             : "入座后点击准备，四人准备即开局。"
       }}
     </p>
+    <div v-if="game.view?.phase === 'lobby'" class="bot-controls">
+      <button
+        :disabled="!enabled || occupied === 4"
+        @click="game.sendEvent('room.add_bot', {})"
+      >
+        增加陪练
+      </button>
+      <button
+        :disabled="!enabled || botCount === 0"
+        @click="game.sendEvent('room.remove_bot', {})"
+      >
+        减少陪练
+      </button>
+      <small>每次一位，按添加顺序移除；陪练自动准备及出牌。</small>
+    </div>
     <div class="seat-grid">
       <div
         v-for="(seat, index) in seats"
@@ -36,7 +52,9 @@ const ready = computed(
         <strong
           >{{ seatName(index) }} {{ index === mySeat ? "· 我" : "" }}</strong
         >
-        <p>{{ seat.name || "等待牌友入座" }}</p>
+        <p>
+          {{ seat.name || "等待牌友入座" }}{{ seat.isBot ? " · 陪练" : "" }}
+        </p>
         <small>{{
           seat.uid
             ? seat.online
@@ -76,6 +94,13 @@ const ready = computed(
   </section>
 </template>
 <style scoped>
+.bot-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 14px;
+}
 .seat-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

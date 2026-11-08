@@ -1,4 +1,5 @@
 import type { Move, ViewState } from "../types/view";
+export const seatOffsets = [2, 3, 1, 0] as const;
 export function showingLast(s: ViewState, review = false) {
   return (
     review ||

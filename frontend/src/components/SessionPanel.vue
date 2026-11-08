@@ -231,8 +231,7 @@ async function invite() {
   font-size: 13px;
 }
 .surrender button {
-  background: #f1e6df;
-  color: #875844;
+  color: #fff;
   margin-right: 8px;
 }
 </style>

@@ -7,16 +7,18 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"time"
 	"upgrade-lan/internal/game"
 )
 
 // Gob preserves private-to-the-protocol fields (hands, bottom and used card IDs).
 // Room IDs are hashed, never interpreted as paths. Files are not served by HTTP.
 type savedRoom struct {
-	PlaysMask uint8
-	LastMask  uint8
-	State     game.GameState
-	Receipts  map[string][]receipt
+	LastSignal time.Time
+	PlaysMask  uint8
+	LastMask   uint8
+	State      game.GameState
+	Receipts   map[string][]receipt
 }
 
 func dataDir() string {
@@ -39,7 +41,7 @@ func (r *Room) save() error {
 	}
 	name := f.Name()
 	defer os.Remove(name)
-	saved := savedRoom{State: r.state, Receipts: r.receipts}
+	saved := savedRoom{State: r.state, Receipts: r.receipts, LastSignal: r.lastActive}
 	for i := 0; i < 4; i++ {
 		if saved.State.Trick.Plays[i] != nil {
 			saved.PlaysMask |= 1 << uint(i)
@@ -81,6 +83,19 @@ func (r *Room) load() error {
 	if saved.State.RoomID != r.id {
 		return errors.New("room identity mismatch")
 	}
+	signal := saved.LastSignal
+	if signal.IsZero() {
+		info, err := f.Stat()
+		if err != nil {
+			return err
+		}
+		signal = info.ModTime()
+	}
+	if time.Since(signal) >= roomTTL {
+		_ = f.Close()
+		return r.erase()
+	}
+	r.lastActive = signal
 	for i := 0; i < 4; i++ {
 		if saved.PlaysMask&(1<<uint(i)) == 0 {
 			saved.State.Trick.Plays[i] = nil
@@ -95,7 +110,7 @@ func (r *Room) load() error {
 		r.receipts = make(map[string][]receipt)
 	}
 	for i := range r.state.Seats {
-		r.state.Seats[i].Online = false
+		r.state.Seats[i].Online = r.state.Seats[i].IsBot
 		r.state.Seats[i].Ready = false
 	}
 	return nil

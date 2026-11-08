@@ -84,6 +84,14 @@ summary {
   color: #65796f;
 }
 @media (max-width: 759px) {
+  .game-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 6px;
+  }
+  .view-container {
+    gap: 10px;
+  }
   .table-dock {
     position: sticky;
     top: env(safe-area-inset-top, 0px);
