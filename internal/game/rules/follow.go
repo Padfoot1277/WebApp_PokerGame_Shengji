@@ -46,7 +46,7 @@ func ValidateHideCheck(hand []Card, played []Card, leadMove [][]Block, trump Tru
 		return err
 	}
 	if compareProfile(got, want) != 0 {
-		return fmt.Errorf("不可藏牌，需尽可能跟出同结构的拖拉机及对子")
+		return fmt.Errorf("不可藏牌，需尽可能跟出同结构的牌")
 	}
 	return nil
 }
