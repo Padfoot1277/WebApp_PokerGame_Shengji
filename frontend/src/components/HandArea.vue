@@ -85,25 +85,6 @@ function cancelGesture() {
   if (gesture?.painting) emit("update:selectedIds", gesture.before);
   gesture = null;
 }
-function quickPair() {
-  const cards = hand.value.flat();
-  const seed =
-    cards.find((c) => props.selectedIds.includes(c.id)) ??
-    cards.find((c) =>
-      cards.some(
-        (d) => d.id !== c.id && d.suit === c.suit && d.rank === c.rank,
-      ),
-    );
-  if (!seed) return;
-  const matches = cards.filter(
-    (c) => c.suit === seed.suit && c.rank === seed.rank,
-  );
-  if (matches.length === 2)
-    emit(
-      "update:selectedIds",
-      matches.map((c) => c.id),
-    );
-}
 function up(e: PointerEvent) {
   const g = gesture;
   gesture = null;
@@ -164,67 +145,33 @@ watch(
     <p v-if="game.reviewPrevious" class="read-only-hint">
       回放中，回到当前牌桌后可继续选牌。
     </p>
-    <div class="hand-tools">
-      <button
-        class="secondary"
-        :disabled="game.pending || game.reviewPrevious"
-        @click="quickPair"
+    <div v-for="(group, index) in hand" :key="index" class="suit-group">
+      <div
+        class="cards-row"
+        @pointerdown="down"
+        @dblclick="lastCardId !== null && pair(lastCardId)"
+        @pointerleave="leaveRow"
       >
-        选对子
-      </button>
-      <span>已选 {{ selectedIds.length }} 张 · 点选 / 横滑选牌，纵滑滚动</span>
-    </div>
-    <div class="hand-scroll">
-      <div v-for="(group, index) in hand" :key="index" class="suit-group">
         <div
-          class="cards-row"
-          @pointerdown="down"
-          @dblclick="lastCardId !== null && pair(lastCardId)"
-          @pointerleave="leaveRow"
+          v-for="card in group"
+          :key="card.id"
+          class="card-wrap"
+          :data-card-id="card.id"
         >
-          <div
-            v-for="card in group"
-            :key="card.id"
-            class="card-wrap"
-            :data-card-id="card.id"
+          <CardItem
+            :card="card"
+            :selected="selectedIds.includes(card.id)"
+            :unavailable="unavailableCard(game.view, card, selectedIds)"
+            @toggle="toggle"
+          /><small v-if="game.view?.usedTrumpIds.includes(card.id)" class="used"
+            >已亮主</small
           >
-            <CardItem
-              :card="card"
-              :selected="selectedIds.includes(card.id)"
-              :unavailable="unavailableCard(game.view, card, selectedIds)"
-              @toggle="toggle"
-            /><small
-              v-if="game.view?.usedTrumpIds.includes(card.id)"
-              class="used"
-              >已亮主</small
-            >
-          </div>
         </div>
       </div>
     </div>
   </section>
 </template>
 <style scoped>
-.hand-tools {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 10px;
-  font-size: 12px;
-  color: #65796f;
-}
-.hand-tools button {
-  min-height: 36px;
-  padding: 6px 12px;
-}
-.hand-scroll {
-  max-height: min(38svh, 380px);
-  overflow-y: auto;
-  overscroll-behavior: contain;
-  padding-top: 8px;
-}
-
 .cards-row {
   display: flex;
   flex-wrap: wrap;

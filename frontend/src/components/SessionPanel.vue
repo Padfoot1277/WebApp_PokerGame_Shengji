@@ -150,7 +150,7 @@ async function invite() {
     ><label
       ><input v-model="sound" type="checkbox" @change="enableSound" />
       提示音</label
-    ><label><input v-model="vibration" type="checkbox" /> 振动</label>
+    >
   </div>
   <section
     v-if="v && (v.phase === 'round_settle' || v.phase === 'game_over')"
