@@ -4,17 +4,27 @@ import (
 	"encoding/json"
 	"sync"
 
+	"upgrade-lan/internal/bot"
 	"upgrade-lan/internal/transport"
 )
 
 type Manager struct {
-	mu    sync.Mutex
-	rooms map[string]*Room
+	botModel  *bot.LearnModel
+	botHybrid bool
+	mu        sync.Mutex
+	rooms     map[string]*Room
 }
 
 func NewManager() *Manager {
+	return NewManagerWithBotModel(nil, false)
+}
+
+// NewManagerWithBotModel shares one read-only checkpoint across all room workers.
+func NewManagerWithBotModel(model *bot.LearnModel, hybrid bool) *Manager {
 	return &Manager{
-		rooms: make(map[string]*Room),
+		botModel:  model,
+		botHybrid: hybrid,
+		rooms:     make(map[string]*Room),
 	}
 }
 
@@ -29,6 +39,8 @@ func (m *Manager) getOrCreate(roomID string, recordEnabled ...bool) *Room {
 		return nil
 	}
 	r := NewRoom(roomID, recordEnabled...)
+	r.botModel = m.botModel
+	r.botHybrid = m.botHybrid
 	m.rooms[roomID] = r
 	r.retire = func() {
 		m.mu.Lock()

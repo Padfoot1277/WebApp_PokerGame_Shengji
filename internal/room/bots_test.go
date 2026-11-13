@@ -5,11 +5,84 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 	"time"
 	"upgrade-lan/internal/bot"
 	"upgrade-lan/internal/game"
+	"upgrade-lan/internal/game/rules"
 )
+
+func TestRoomUsesSameModelSearchAsArena(t *testing.T) {
+	for _, mode := range []string{"search", "hybrid"} {
+		t.Run(mode, func(t *testing.T) {
+			checkRoomSearch(t, mode == "hybrid")
+		})
+	}
+}
+
+func checkRoomSearch(t *testing.T, hybrid bool) {
+	t.Helper()
+	t.Setenv("DATA_DIR", t.TempDir())
+	model := bot.NewLearnModel(19)
+	raw, err := json.Marshal(model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	path := filepath.Join(t.TempDir(), "checkpoint.json")
+	if err := os.WriteFile(path, raw, 0600); err != nil {
+		t.Fatal(err)
+	}
+	model, err = bot.LoadLearnedPolicy(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := NewRoom("learned")
+	r.botModel = model
+	r.botHybrid = hybrid
+	r.state.Phase = game.PhasePlayTrick
+	r.state.CallerSeat = 0
+	r.state.Trump = game.TrumpState{Trump: rules.Trump{LevelRank: rules.R2}}
+	r.state.Trick = game.TrickState{TurnSeat: 0, LeaderSeat: 0, BiggerSeat: -1}
+	deck := rules.NewDoubleDeck()
+	for i, uid := range []string{"bot:first", "one", "two", "three"} {
+		hand := deck[4*i : 4*i+4]
+		for j := range hand {
+			hand[j].SuitClass = rules.ComputeSuitClass(hand[j], r.state.Trump.Trump)
+		}
+		r.state.Seats[i] = game.SeatState{UID: uid, Team: game.TeamOfSeat(i), Hand: hand, HandCount: len(hand), IsBot: i == 0}
+	}
+	r.botNext = time.Time{}
+	r.conns[&fakeClient{uid: "one"}] = struct{}{}
+	infer := bot.LearnedPlay
+	if hybrid {
+		infer = bot.HybridPlay
+	}
+	want, err := infer(r.state, model)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.scheduleBot(time.Now())
+	select {
+	case result := <-r.botResults:
+		if result.err != nil || !reflect.DeepEqual(result.action, want) {
+			t.Fatalf("worker returned %+v, want %+v", result, want)
+		}
+		before := r.state.Version
+		r.applyBot(result)
+		if r.state.Version == before || r.state.Seats[0].HandCount >= 4 {
+			t.Fatal("learned move was not committed")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("learned move did not arrive")
+	}
+	if err := os.WriteFile(path, []byte("{}"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if invalid, err := bot.LoadLearnedPolicy(path); err == nil || invalid != nil {
+		t.Fatal("accepted empty checkpoint")
+	}
+}
 
 func TestBotsFIFOAndPersistence(t *testing.T) {
 	t.Setenv("DATA_DIR", t.TempDir())
@@ -55,6 +128,45 @@ func TestBotsFIFOAndPersistence(t *testing.T) {
 	restored.state.Phase = game.PhasePlayTrick
 	if err := restored.changeBot(c, false); err == nil {
 		t.Fatal("removed bot during play")
+	}
+}
+
+func TestRuleRoomSavesAceForBottom(t *testing.T) {
+	t.Setenv("DATA_DIR", t.TempDir())
+	r := NewRoom("rule-ending")
+	r.state.Phase = game.PhasePlayTrick
+	r.state.Points = 60
+	r.state.CallerSeat, r.state.BottomOwnerSeat = 0, 0
+	r.state.Trick = game.TrickState{TurnSeat: 0, LeaderSeat: 0, BiggerSeat: -1}
+	r.state.Trump = game.TrumpState{Trump: rules.Trump{LevelRank: rules.R2, Suit: rules.Heart, HasTrumpSuit: true}}
+	deck := rules.NewDoubleDeck()
+	r.state.Bottom = []rules.Card{deck[4], deck[17]}
+	for i, h := range [4][2]int{{0, 11}, {1, 10}, {8, 9}, {6, 7}} {
+		hand := []rules.Card{deck[h[0]], deck[h[1]]}
+		for j := range hand {
+			hand[j].SuitClass = rules.ComputeSuitClass(hand[j], r.state.Trump.Trump)
+		}
+		r.state.Seats[i] = game.SeatState{UID: []string{"bot:first", "one", "two", "three"}[i], Team: game.TeamOfSeat(i), Hand: hand, HandCount: 2, IsBot: i == 0}
+		r.state.Teams[i%2].LevelRank = rules.R2
+	}
+	r.botNext = time.Time{}
+	r.conns[&fakeClient{uid: "one"}] = struct{}{}
+	r.scheduleBot(time.Now())
+	select {
+	case result := <-r.botResults:
+		if result.err != nil {
+			t.Fatal(result.err)
+		}
+		p, ok := result.action.Payload.(game.PlayCardsPayload)
+		if !ok || len(p.CardIDs) != 1 || p.CardIDs[0] != 11 {
+			t.Fatalf("expected low spade to preserve the ace, got %v", result.action)
+		}
+		r.applyBot(result)
+		if r.state.Seats[0].HandCount != 1 {
+			t.Fatal("rule play was not committed")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("no room rule decision")
 	}
 }
 func TestBotSchedulerAndStaleResult(t *testing.T) {

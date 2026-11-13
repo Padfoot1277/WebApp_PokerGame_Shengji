@@ -18,7 +18,7 @@ func Reduce(st GameState, uid string, typ ClientEventType, payload any) (ReduceR
 	if err := validateCommand(st.Phase, typ, payload); err != nil {
 		return ReduceResult{State: st}, err
 	}
-	st = cloneState(st)
+	st = CloneState(st)
 	if typ == EvSurrender || typ == EvCancelSurrender {
 		return reduceSurrender(st, uid, typ)
 	}

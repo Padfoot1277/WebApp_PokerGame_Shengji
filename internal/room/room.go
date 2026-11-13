@@ -18,6 +18,8 @@ type incoming struct {
 }
 
 type Room struct {
+	botModel      *bot.LearnModel
+	botHybrid     bool
 	botResults    chan botResult
 	botBusy       bool
 	botNext       time.Time

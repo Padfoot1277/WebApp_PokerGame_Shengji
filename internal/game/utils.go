@@ -152,6 +152,9 @@ func cloneMove(m Move) Move {
 		cp.Blocks = make([][]rules.Block, len(m.Blocks))
 		for i := range m.Blocks {
 			cp.Blocks[i] = append([]rules.Block(nil), m.Blocks[i]...)
+			for j := range cp.Blocks[i] {
+				cp.Blocks[i][j].Cards = append([]rules.Card(nil), m.Blocks[i][j].Cards...)
+			}
 		}
 	}
 	cp.CardIDs = append([]int(nil), m.CardIDs...)

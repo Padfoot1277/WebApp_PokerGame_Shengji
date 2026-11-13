@@ -19,7 +19,7 @@ func fixture() GameState {
 }
 func TestInvalidCommandIsSafe(t *testing.T) {
 	st := fixture()
-	before := cloneState(st)
+	before := CloneState(st)
 	for _, test := range []struct {
 		typ ClientEventType
 		p   any

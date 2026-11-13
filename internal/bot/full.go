@@ -1,7 +1,6 @@
 package bot
 
 import (
-	"encoding/json"
 	"fmt"
 	"math"
 	"sort"
@@ -29,8 +28,8 @@ func Observe(st game.GameState, seat int) Table {
 		return table
 	}
 	// Deep-copy the public trick too: workers must not share mutable room storage.
-	raw, _ := json.Marshal(game.MakeView(st, st.Seats[seat].UID))
-	_ = json.Unmarshal(raw, &table.View)
+	table.View = game.MakeView(st, st.Seats[seat].UID)
+	table.View.Trick = table.View.Trick.Clone()
 	for i, s := range st.Seats {
 		table.Hands[i] = classified(s.Hand, st.Trump.Trump)
 	}
@@ -88,11 +87,13 @@ type trickLine struct {
 }
 type fullSearch struct {
 	table        Table
+	fixedBudget  bool
 	team         int
 	deadline     time.Time
 	cache        map[string][]fullMove
 	afterControl map[string]float64
 	control      [4]float64
+	safeBlocks   [4][]rules.Block
 	nodes        int
 }
 
@@ -134,20 +135,20 @@ func unbeatable(b rules.Block, seat int, table Table) bool {
 	}
 	return true
 }
-func retainedControl(h []rules.Card, seat int, table Table) float64 {
-	value := 0.0
+func controlBlocks(h []rules.Card, seat int, table Table) []rules.Block {
+	var safe []rules.Block
 	t := table.View.Trump.Trump
 	for _, sc := range []rules.SuitClass{rules.SCH, rules.SCS, rules.SCD, rules.SCC, rules.SCTrump} {
 		for _, kind := range []rules.BlockType{rules.BlockSingle, rules.BlockPair} {
 			bs, _ := rules.FindBlocksInHand(h, t, sc, kind, 0)
 			for _, b := range bs {
 				if unbeatable(b, seat, table) {
-					value += float64(len(b.Cards)) * 2
+					safe = append(safe, b)
 				}
 			}
 		}
 	}
-	return value
+	return safe
 }
 func costOf(cards, hand []rules.Card, seat int, table Table) float64 {
 	t := table.View.Trump.Trump
@@ -196,7 +197,21 @@ func (q *fullSearch) controlAfter(seat int, cards []rules.Card) float64 {
 	if value, ok := q.afterControl[key]; ok {
 		return value
 	}
-	value := retainedControl(remaining(q.table.Hands[seat], cards), seat, q.table)
+	// Other players' hands are fixed during this search, so a previously safe
+	// single or pair remains safe exactly when all of its cards are retained.
+	var played [rules.DoubleDeckSize]bool
+	for _, c := range cards {
+		played[c.ID] = true
+	}
+	value := q.control[seat]
+	for _, block := range q.safeBlocks[seat] {
+		for _, c := range block.Cards {
+			if played[c.ID] {
+				value -= float64(2 * len(block.Cards))
+				break
+			}
+		}
+	}
 	q.afterControl[key] = value
 	return value
 }
@@ -251,9 +266,15 @@ func (q *fullSearch) follows(seat int, lead *game.PlayedMove) []fullMove {
 	chosen := append([]rules.Card(nil), fixed...)
 	enumerationDeadline := time.Now().Add(60 * time.Millisecond)
 	attempts := 0
+	exhausted := func() bool {
+		if q.fixedBudget {
+			return attempts >= 192 && len(out) > 0 || attempts >= 12000
+		}
+		return attempts >= 12000 || len(out) > 0 && time.Now().After(enumerationDeadline)
+	}
 	var search func(int, int)
 	search = func(start, left int) {
-		if attempts >= 12000 || len(out) > 0 && time.Now().After(enumerationDeadline) {
+		if exhausted() {
 			return
 		}
 		if left == 0 {
@@ -265,7 +286,7 @@ func (q *fullSearch) follows(seat int, lead *game.PlayedMove) []fullMove {
 			chosen = append(chosen, pool[i])
 			search(i+1, left-1)
 			chosen = chosen[:len(chosen)-1]
-			if attempts >= 12000 || len(out) > 0 && time.Now().After(enumerationDeadline) {
+			if exhausted() {
 				return
 			}
 		}
@@ -275,7 +296,7 @@ func (q *fullSearch) follows(seat int, lead *game.PlayedMove) []fullMove {
 		return strength(pool[i], t)+points(pool[i]) < strength(pool[j], t)+points(pool[j])
 	})
 	search(0, need)
-	if attempts >= 12000 || len(out) > 0 && time.Now().After(enumerationDeadline) {
+	if exhausted() {
 		for i, j := 0, len(pool)-1; i < j; i, j = i+1, j-1 {
 			pool[i], pool[j] = pool[j], pool[i]
 		}
@@ -292,7 +313,14 @@ func (q *fullSearch) follows(seat int, lead *game.PlayedMove) []fullMove {
 		leader := (seat + 3) % 4
 		fallback.Trick = game.TrickState{LeaderSeat: leader, BiggerSeat: leader, TurnSeat: seat}
 		fallback.Trick.Plays[leader] = lead
-		if cards, err := chooseWithHistory(fallback, nil); err == nil {
+		if q.fixedBudget {
+			table := q.table
+			table.View = fallback
+			moves, _ := learnCandidates(table)
+			for _, cards := range moves {
+				add(cards)
+			}
+		} else if cards, err := chooseWithHistory(fallback, nil); err == nil {
 			add(cards)
 		}
 	}
@@ -444,7 +472,7 @@ func (q *fullSearch) forecast(line trickLine, seats []int, lead *game.PlayedMove
 	if maximize {
 		best = math.Inf(-1)
 	}
-	limited := q.nodes >= 1000 || time.Now().After(q.deadline)
+	limited := q.nodes >= 1000 || !q.fixedBudget && time.Now().After(q.deadline)
 	// Once the budget is spent, complete the trick greedily instead of treating an
 	// unfinished trick as a guaranteed win. This still sees each remaining hand.
 	if limited {
@@ -497,6 +525,15 @@ func (q *fullSearch) forecast(line trickLine, seats []int, lead *game.PlayedMove
 	return best
 }
 func chooseFull(table Table) ([]rules.Card, error) {
+	return scoreFull(table, nil)
+}
+
+// With a visitor the tactical scores are also available for the hybrid policy.
+// Fixed work budgets make its shortlist independent of host load.
+func scoreFull(table Table, visit func([]rules.Card, float64)) ([]rules.Card, error) {
+	return scoreFullBudget(table, visit, visit != nil)
+}
+func scoreFullBudget(table Table, visit func([]rules.Card, float64), fixedBudget bool) ([]rules.Card, error) {
 	s := table.View
 	seat := s.MySeat
 	t := s.Trump.Trump
@@ -504,9 +541,12 @@ func chooseFull(table Table) ([]rules.Card, error) {
 	if len(h) == 0 {
 		return nil, fmt.Errorf("empty full-state hand")
 	}
-	q := fullSearch{table: table, team: s.Seats[seat].Team, deadline: time.Now().Add(1500 * time.Millisecond), cache: map[string][]fullMove{}, afterControl: map[string]float64{}}
+	q := fullSearch{table: table, team: s.Seats[seat].Team, fixedBudget: fixedBudget, deadline: time.Now().Add(1500 * time.Millisecond), cache: map[string][]fullMove{}, afterControl: map[string]float64{}}
 	for i, hand := range table.Hands {
-		q.control[i] = retainedControl(hand, i, table)
+		q.safeBlocks[i] = controlBlocks(hand, i, table)
+		for _, block := range q.safeBlocks[i] {
+			q.control[i] += float64(2 * len(block.Cards))
+		}
 	}
 	lead := s.Trick.Plays[s.Trick.LeaderSeat]
 	roots := []fullMove{}
@@ -533,6 +573,13 @@ func chooseFull(table Table) ([]rules.Card, error) {
 	}
 	best := math.Inf(-1)
 	var chosen []rules.Card
+	pending := make([]int, 0, 3)
+	for offset := 1; offset < 4; offset++ {
+		next := (seat + offset) % 4
+		if s.Trick.Plays[next] == nil {
+			pending = append(pending, next)
+		}
+	}
 	for _, m := range roots {
 		currentLead := lead
 		line := trickLine{cost: m.cost}
@@ -561,13 +608,6 @@ func chooseFull(table Table) ([]rules.Card, error) {
 			}
 			line = advance(line, m, seat, lead, t)
 		}
-		pending := []int{}
-		for offset := 1; offset < 4; offset++ {
-			next := (seat + offset) % 4
-			if s.Trick.Plays[next] == nil {
-				pending = append(pending, next)
-			}
-		}
 		q.nodes = 0
 		value := q.forecast(line, pending, currentLead, 0, math.Inf(-1), math.Inf(1))
 		// Later tricks can exploit long structures, but never outweigh handing over a loaded trick.
@@ -577,6 +617,9 @@ func chooseFull(table Table) ([]rules.Card, error) {
 		if value > best {
 			best = value
 			chosen = m.cards
+		}
+		if visit != nil {
+			visit(m.cards, value)
 		}
 	}
 	if len(chosen) == 0 {

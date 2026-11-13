@@ -57,8 +57,8 @@ func validateCommand(phase Phase, typ ClientEventType, payload any) *AppError {
 	return ErrInvalidPayload
 }
 
-// Copy all mutable storage before applying a command. Rejected commands leave the input intact.
-func cloneState(st GameState) GameState {
+// CloneState detaches mutable storage for speculative moves and asynchronous workers.
+func CloneState(st GameState) GameState {
 	for i := range st.Seats {
 		st.Seats[i].Hand = append([]rules.Card(nil), st.Seats[i].Hand...)
 	}
@@ -69,24 +69,30 @@ func cloneState(st GameState) GameState {
 		used[id] = v
 	}
 	st.UsedTrumpIDs = used
+	st.Trick = st.Trick.Clone()
+	return st
+}
+
+// Clone detaches all card storage so asynchronous bot workers can retain a trick.
+func (trick TrickState) Clone() TrickState {
 	for i := 0; i < 4; i++ {
-		if p := st.Trick.Plays[i]; p != nil {
+		if p := trick.Plays[i]; p != nil {
 			cp := *p
 			cp.Move = cloneMove(p.Move)
-			st.Trick.Plays[i] = &cp
+			trick.Plays[i] = &cp
 		}
-		if p := st.Trick.LastPlays[i]; p != nil {
+		if p := trick.LastPlays[i]; p != nil {
 			cp := *p
 			cp.Move = cloneMove(p.Move)
-			st.Trick.LastPlays[i] = &cp
+			trick.LastPlays[i] = &cp
 		}
 	}
-	if p := st.Trick.Throw; p != nil {
+	if p := trick.Throw; p != nil {
 		cp := *p
 		cp.IntentMove = cloneMove(p.IntentMove)
-		st.Trick.Throw = &cp
+		trick.Throw = &cp
 	}
-	return st
+	return trick
 }
 
 func useTrumpCards(st *GameState, ids []int) *AppError {

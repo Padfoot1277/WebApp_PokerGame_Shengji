@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"upgrade-lan/internal/bot"
 	"upgrade-lan/internal/room"
 	"upgrade-lan/internal/ws"
 )
@@ -14,7 +15,25 @@ func main() {
 	hub := ws.NewHub()
 	go hub.Run()
 
-	rm := room.NewManager()
+	var model *bot.LearnModel
+	mode := env("BOT_MODEL_MODE", "search")
+	if path := os.Getenv("BOT_MODEL_PATH"); path != "" {
+		if mode != "search" && mode != "hybrid" {
+			log.Fatalf("unknown BOT_MODEL_MODE %q, expected search or hybrid", mode)
+		}
+		var err error
+		model, err = bot.LoadLearnedPolicy(path)
+		if err != nil {
+			log.Printf("bot checkpoint %q unavailable, using built-in policy: %v", path, err)
+		} else {
+			log.Printf("loaded bot checkpoint %q, mode %s", path, mode)
+		}
+	}
+	if model == nil {
+		policy := bot.RoomRuleSearch()
+		log.Printf("room bots using rule search: max_hand=%d candidates=%d exact_tail=%d", policy.MaxHand, policy.Candidates, policy.ExactTail)
+	}
+	rm := room.NewManagerWithBotModel(model, mode == "hybrid")
 	cleanup := func() {
 		if err := rm.CleanupExpired(time.Now()); err != nil {
 			log.Println("expired room cleanup:", err)

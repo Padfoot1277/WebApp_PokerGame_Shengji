@@ -111,6 +111,11 @@ func (r *Room) scheduleBot(now time.Time) {
 		table := bot.Observe(r.state, seat)
 		view := table.View
 		history := append([]bot.PublicTrick(nil), r.botHistory...)
+		var searchState *game.GameState
+		if (r.botModel != nil || bot.ShortRulePosition(r.state)) && view.Phase == game.PhasePlayTrick && seat == view.Trick.TurnSeat && !view.SurrenderVotes[(seat+2)%4] {
+			snapshot := game.CloneState(r.state)
+			searchState = &snapshot
+		}
 		go func() {
 			result := botResult{version: view.Version, uid: s.UID}
 			defer func() {
@@ -123,6 +128,24 @@ func (r *Room) scheduleBot(now time.Time) {
 				case <-r.done:
 				}
 			}()
+			if searchState != nil && r.botModel != nil {
+				infer := bot.LearnedPlay
+				if r.botHybrid {
+					infer = bot.HybridPlay
+				}
+				result.action, result.err = infer(*searchState, r.botModel)
+				if result.err == nil {
+					return
+				}
+				slog.Warn("bot model failed, using built-in policy", "room", r.id, "error", result.err)
+			}
+			if searchState != nil && bot.ShortRulePosition(*searchState) {
+				result.action, result.err = bot.RulePlay(*searchState)
+				if result.err == nil {
+					return
+				}
+				slog.Warn("bot endgame search failed, using one-trick policy", "room", r.id, "error", result.err)
+			}
 			result.action, result.err = bot.DecideFull(table, history)
 		}()
 		return
