@@ -6,6 +6,9 @@ export default defineConfig({
   server: {
     host: "0.0.0.0", // ⭐ 必须
     port: 5173,
-    proxy: { "/ws": { target: "ws://127.0.0.1:8080", ws: true } },
+    proxy: {
+      "/api": "http://127.0.0.1:8080",
+      "/ws": { target: "ws://127.0.0.1:8080", ws: true },
+    },
   },
 });

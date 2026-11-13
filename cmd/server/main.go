@@ -29,6 +29,7 @@ func main() {
 		}
 	}()
 
+	room.RegisterArchive(http.DefaultServeMux)
 	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		// ws 只依赖一个 Router 接口（rm 实现它）
 		ws.ServeWS(hub, rm, w, r)
