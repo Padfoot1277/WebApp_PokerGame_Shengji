@@ -151,7 +151,7 @@ func (r *Room) applyBot(result botResult) {
 	}
 	before := r.state
 	r.state = res.State
-	if err := r.save(); err != nil {
+	if err := r.persist(&roundAction{before, result.uid, result.action.Type, result.action.Payload}); err != nil {
 		r.state = before
 		r.blockBot(result, err)
 		return

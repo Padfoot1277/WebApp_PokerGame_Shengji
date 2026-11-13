@@ -51,9 +51,27 @@ GitHub Actions 还会在 Linux 上运行 `go test -race ./...`。本机未启用
 | `ALLOWED_ORIGINS` | 仅同源 | 额外允许的完整 Origin，以逗号分隔 |
 | `VITE_WS_URL` | 当前站点 `/ws` | 构建时可指定独立 WebSocket 地址 |
 
-牌局使用临时文件写入、同步后原子替换；保存失败的请求不会提交到房间状态。服务重启后按房间码加载保存状态，真人玩家初始离线并取消准备，重新连接恢复；机器人保留身份、添加顺序并由服务器继续驱动，公开出牌记忆从当前可见的上一墩重新积累。
+房间快照与回执保存在 `DATA_DIR/rooms.sqlite`。每次有效操作与对应的小局记录在同一个 SQLite 事务中提交。服务重启后按房间码加载保存状态，真人玩家初始离线并取消准备，重新连接恢复；机器人保留身份、添加顺序并由服务器继续驱动，公开出牌记忆从当前可见的上一墩重新积累。
 
 `data` 含完整手牌、底牌、身份签名密钥和操作日志，属于服务器私有数据，不对外提供静态访问，也不提交到 Git。请使用同一个数据目录与密钥重启服务。当前文件保存面向单进程部署，不支持多个服务实例同时写同一目录。诊断日志尚未实现完整可视化复盘及保留周期管理。
+
+### 小局档案与训练数据
+
+服务端从发牌起在房间库暂存每小局的牌面和操作，打家最终得分确定后，将整局一次性写入 `DATA_DIR/archive/rounds.sqlite`。房间过期、同号重建和“更新服务器并清空牌局”都保留档案。未结算时可以重连续打；房间过期或被清空时，未结算小局的暂存记录随房间删除。升级时旧档案中的未结算小局也按这一规则处理。数据库随服务端备份，可用 SQLite 工具只读查询。
+
+- `rounds` 每小局一行，包含房间号、从 0 开始的小局序号、结算阶段和初始牌面。旧版房间首次迁移时以现存快照开始，标记为 `from_deal=0`。
+- `actions` 按 `round_id, version` 排序，记录操作者座位、动作、请求牌 ID 和生效后的完整牌面。开局动作对应发牌后的快照。版本号因重连等事件可以不连续。每个快照的 `hands` 和 `bottom` 保存四家手牌与底牌，`seats[].isBot` 标识服务端机器人。通过普通 WebSocket 接入的外部陪练和真人使用相同的客户端协议。
+- 训练时可用动作前的本家手牌与当时公开的信息作为输入，用请求和实际出牌比较甩牌意图与裁剪结果。以下查询选出从发牌开始、已经结算的小局及其得分、弃局标志。同队两人确认弃局并结算得分的样本也会归档。
+
+```sql
+SELECT r.id, r.room, r.round_index,
+       json_extract(a.state_after, '$.roundResultLabel') AS result,
+       json_extract(a.state_after, '$.roundPointsFinal') AS points,
+       json_extract(a.state_after, '$.surrendered') AS surrendered
+FROM rounds AS r JOIN actions AS a ON a.round_id = r.id
+WHERE r.from_deal = 1 AND r.phase IN ('round_settle', 'game_over')
+  AND a.version = (SELECT MAX(version) FROM actions WHERE round_id = r.id);
+```
 
 公网部署需要另行配置 HTTPS/WSS 和反向代理。当前同时提供 Web 和竖屏微信小游戏客户端；正式微信登录及正式微信发布仍需后续接入。
 

@@ -2,9 +2,7 @@ package room
 
 import (
 	"crypto/sha256"
-	"encoding/gob"
 	"encoding/hex"
-	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,6 +13,7 @@ import (
 // Gob preserves private-to-the-protocol fields (hands, bottom and used card IDs).
 // Room IDs are hashed, never interpreted as paths. Files are not served by HTTP.
 type savedRoom struct {
+	RoundID    string
 	LastSignal time.Time
 	PlaysMask  uint8
 	LastMask   uint8
@@ -32,16 +31,9 @@ func roomPath(id string) string {
 	sum := sha256.Sum256([]byte(id))
 	return filepath.Join(dataDir(), hex.EncodeToString(sum[:])+".gob")
 }
-func (r *Room) save() error {
-	if err := os.MkdirAll(dataDir(), 0700); err != nil {
-		return err
-	}
-	f, err := os.CreateTemp(dataDir(), "room-*.tmp")
-	if err != nil {
-		return err
-	}
-	name := f.Name()
-	defer os.Remove(name)
+func (r *Room) save() error { return r.persist(nil) }
+
+func (r *Room) savedSnapshot() savedRoom {
 	saved := savedRoom{State: r.state, Receipts: r.receipts, LastSignal: r.lastActive}
 	for i := 0; i < 4; i++ {
 		if saved.State.Trick.Plays[i] != nil {
@@ -55,48 +47,12 @@ func (r *Room) save() error {
 			saved.State.Trick.LastPlays[i] = &game.PlayedMove{}
 		}
 	}
-	err = gob.NewEncoder(f).Encode(saved)
-	if err == nil {
-		err = f.Sync()
-	}
-	closeErr := f.Close()
-	if err != nil {
-		return err
-	}
-	if closeErr != nil {
-		return closeErr
-	}
-	return os.Rename(name, roomPath(r.id))
+	return saved
 }
-func (r *Room) load() error {
-	f, err := os.Open(roomPath(r.id))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
-	}
-	if err != nil {
-		return err
-	}
-	defer f.Close()
-	var saved savedRoom
-	if err = gob.NewDecoder(f).Decode(&saved); err != nil {
-		return err
-	}
-	if saved.State.RoomID != r.id {
-		return errors.New("room identity mismatch")
-	}
-	signal := saved.LastSignal
-	if signal.IsZero() {
-		info, err := f.Stat()
-		if err != nil {
-			return err
-		}
-		signal = info.ModTime()
-	}
-	if time.Since(signal) >= roomTTL {
-		_ = f.Close()
-		return r.erase()
-	}
-	r.lastActive = signal
+
+func (r *Room) restore(saved savedRoom) {
+	r.roundID = saved.RoundID
+	r.lastActive = saved.LastSignal
 	for i := 0; i < 4; i++ {
 		if saved.PlaysMask&(1<<uint(i)) == 0 {
 			saved.State.Trick.Plays[i] = nil
@@ -117,5 +73,4 @@ func (r *Room) load() error {
 		r.state.Seats[i].Online = r.state.Seats[i].IsBot
 		r.state.Seats[i].Ready = false
 	}
-	return nil
 }

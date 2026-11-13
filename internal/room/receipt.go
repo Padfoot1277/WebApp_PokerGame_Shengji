@@ -33,6 +33,7 @@ func (r *Room) process(msg incoming) {
 	before := r.state
 	r.notice = ""
 	var result receipt
+	var payload any
 	for _, old := range r.receipts[msg.c.UID()] {
 		if old.ID == msg.reqID {
 			if err := r.save(); err != nil {
@@ -53,7 +54,9 @@ func (r *Room) process(msg incoming) {
 				result.Message = "操作失败，请重试"
 			}
 		}()
-		if err := r.handleEvent(msg.c, msg.typ, msg.raw); err != nil {
+		var err *game.AppError
+		payload, err = r.handleEvent(msg.c, msg.typ, msg.raw)
+		if err != nil {
 			result.OK = false
 			result.Code = err.Code
 			result.Message = err.Error()
@@ -65,7 +68,11 @@ func (r *Room) process(msg incoming) {
 	}
 	old := r.receipts[msg.c.UID()]
 	r.receipts[msg.c.UID()] = history
-	if err := r.save(); err != nil {
+	var action *roundAction
+	if result.OK && before.Version != r.state.Version && r.state.Phase != game.PhaseLobby {
+		action = &roundAction{before, msg.c.UID(), msg.typ, payload}
+	}
+	if err := r.persist(action); err != nil {
 		r.state = before
 		r.receipts[msg.c.UID()] = old
 		r.notice = ""

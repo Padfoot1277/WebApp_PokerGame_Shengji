@@ -6,7 +6,7 @@ function Run([string]$Program, [string[]]$Arguments) {
     & $Program @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$Program failed (exit $LASTEXITCODE)." }
 }
-Write-Host 'This command deploys GitHub HEAD and permanently clears ALL rooms, sessions and game history.'
+Write-Host 'This command deploys GitHub HEAD and permanently clears live rooms, sessions and request logs. Permanent round archives are retained.'
 Run 'ssh' @('-o','BatchMode=yes',$server,'sudo -n true')
 Run 'git' @('clone','--depth','1',$repo,$stage)
 Push-Location $stage
@@ -39,7 +39,7 @@ mkdir -p "$base/frontend/dist"
 test "$(readlink -f "$base/frontend/dist")" = /home/ubuntu/shengji/frontend/dist
 find /home/ubuntu/shengji/frontend/dist -mindepth 1 -delete
 cp -a "$stage/dist/." "$base/frontend/dist/"
-find /home/ubuntu/shengji/data -mindepth 1 -delete
+find "$base/data" -maxdepth 1 -type f \( -name "*.gob" -o -name "rooms.sqlite*" -o -name "session.key" -o -name "events.jsonl" -o -name "room-*.tmp" \) -delete
 sudo -n systemctl start shengji
 sleep 2
 systemctl is-active shengji

@@ -17,9 +17,15 @@ func (r *Room) expired(now time.Time) bool {
 }
 func (r *Room) erase() error {
 	err := os.Remove(roomPath(r.id))
-	if errors.Is(err, os.ErrNotExist) {
-		return nil
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
 	}
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	_, err = db.Exec("DELETE FROM rooms WHERE room=?", r.id)
 	return err
 }
 
@@ -47,24 +53,56 @@ func (m *Manager) CleanupExpired(now time.Time) error {
 			}
 			return err
 		}
-		info, statErr := f.Stat()
 		var saved savedRoom
 		decodeErr := gob.NewDecoder(f).Decode(&saved)
-		_ = f.Close()
-		if statErr != nil {
-			return statErr
-		}
-		signal := saved.LastSignal
-		if signal.IsZero() {
-			signal = info.ModTime()
-		}
+		info, statErr := f.Stat()
+		f.Close()
 		if decodeErr != nil {
-			signal = info.ModTime()
-		}
-		if now.Sub(signal) >= roomTTL {
-			if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
-				return err
+			if statErr != nil {
+				return statErr
 			}
+			if now.Sub(info.ModTime()) >= roomTTL {
+				if err := os.Remove(path); err != nil {
+					return err
+				}
+			}
+			continue
+		}
+		if roomPath(saved.State.RoomID) != path {
+			return errors.New("legacy room identity mismatch")
+		}
+		if r := NewRoom(saved.State.RoomID); r.loadErr != nil {
+			return r.loadErr
+		}
+	}
+	db, err := openStore()
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	rows, err := db.Query("SELECT room FROM rooms WHERE signal <= ?", now.Add(-roomTTL).Unix())
+	if err != nil {
+		return err
+	}
+	var expired []string
+	for rows.Next() {
+		var id string
+		if err := rows.Scan(&id); err != nil {
+			rows.Close()
+			return err
+		}
+		if m.rooms[id] == nil {
+			expired = append(expired, id)
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return err
+	}
+	rows.Close()
+	for _, id := range expired {
+		if _, err := db.Exec("DELETE FROM rooms WHERE room=? AND signal <= ?", id, now.Add(-roomTTL).Unix()); err != nil {
+			return err
 		}
 	}
 	return nil

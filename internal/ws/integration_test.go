@@ -1,11 +1,13 @@
 package ws_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -92,7 +94,8 @@ func wait(t *testing.T, condition func() bool) {
 	t.Fatal("snapshot timed out")
 }
 func TestFourPlayersFullRoundAndReconnect(t *testing.T) {
-	t.Setenv("DATA_DIR", t.TempDir())
+	dir := t.TempDir()
+	t.Setenv("DATA_DIR", dir)
 	hub := ws.NewHub()
 	go hub.Run()
 	manager := room.NewManager()
@@ -165,6 +168,24 @@ func TestFourPlayersFullRoundAndReconnect(t *testing.T) {
 	wait(t, func() bool { return players[0].snapshot().Phase == game.PhaseCallTrump })
 	if players[0].snapshot().BottomAward != 0 {
 		t.Fatal("stale bottom award")
+	}
+	db, err := sql.Open("sqlite3", filepath.Join(dir, "archive", "rounds.sqlite"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var rounds, plays, finalPoints int
+	var label string
+	if err := db.QueryRow("SELECT count(*) FROM rounds WHERE from_deal=1").Scan(&rounds); err != nil || rounds != 1 {
+		t.Fatalf("rounds=%d: %v", rounds, err)
+	}
+	if err := db.QueryRow(`SELECT count(*) FROM actions JOIN rounds ON id=round_id
+        WHERE round_index=0 AND phase='round_settle' AND event='game.play_cards'`).Scan(&plays); err != nil || plays != sequence {
+		t.Fatalf("archived plays=%d: %v", plays, err)
+	}
+	if err := db.QueryRow(`SELECT json_extract(state_after,'$.roundPointsFinal'),json_extract(state_after,'$.roundResultLabel')
+        FROM actions JOIN rounds ON id=round_id WHERE round_index=0 ORDER BY version DESC LIMIT 1`).Scan(&finalPoints, &label); err != nil || finalPoints != end.RoundPointsFinal || label != end.RoundResultLabel {
+		t.Fatalf("archived result=%d %q: %v", finalPoints, label, err)
 	}
 }
 

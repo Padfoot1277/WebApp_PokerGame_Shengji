@@ -28,7 +28,8 @@ type Room struct {
 	historyRound  int
 	historyTrick  int
 
-	id string
+	id      string
+	roundID string
 
 	join  chan transport.Client
 	leave chan transport.Client
@@ -165,20 +166,20 @@ func (r *Room) Run() {
 	}
 }
 
-func (r *Room) handleEvent(c transport.Client, typ string, raw json.RawMessage) *game.AppError {
+func (r *Room) handleEvent(c transport.Client, typ string, raw json.RawMessage) (any, *game.AppError) {
 	if typ == "room.add_bot" || typ == "room.remove_bot" {
-		return r.changeBot(c, typ == "room.add_bot")
+		return nil, r.changeBot(c, typ == "room.add_bot")
 	}
 	evType, payload, err := ParseClientEvent(typ, raw)
 	if err != nil {
 		slog.Warn(err.Error())
 
-		return err
+		return nil, err
 	}
 	res, err := game.Reduce(r.state, c.UID(), evType, payload)
 	if err != nil {
 		slog.Warn(err.Error())
-		return err
+		return nil, err
 	}
 	r.notice = res.Notice
 
@@ -190,7 +191,7 @@ func (r *Room) handleEvent(c transport.Client, typ string, raw json.RawMessage) 
 			}
 		}
 	}
-	return nil
+	return payload, nil
 }
 
 func (r *Room) broadcastSnapshot() {

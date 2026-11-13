@@ -1,6 +1,7 @@
 package room
 
 import (
+	"encoding/gob"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -148,11 +149,18 @@ func TestSweepUnloadedRooms(t *testing.T) {
 	if err := m.CleanupExpired(time.Now()); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := os.Stat(roomPath("old")); !os.IsNotExist(err) {
-		t.Fatal("expired unloaded room retained")
+	db, err := openStore()
+	if err != nil {
+		t.Fatal(err)
 	}
-	if _, err := os.Stat(roomPath("recent")); err != nil {
-		t.Fatal("recent room removed")
+	defer db.Close()
+	var id string
+	if err := db.QueryRow("SELECT room FROM rooms").Scan(&id); err != nil || id != "recent" {
+		t.Fatalf("remaining room = %q: %v", id, err)
+	}
+	var n int
+	if err := db.QueryRow("SELECT COUNT(*) FROM rooms").Scan(&n); err != nil || n != 1 {
+		t.Fatalf("remaining rooms = %d: %v", n, err)
 	}
 }
 
@@ -186,7 +194,14 @@ func TestLegacySaveExpiresByModificationTime(t *testing.T) {
 	r := NewRoom("legacy")
 	r.state.Seats[0].UID = "old"
 	r.lastActive = time.Time{}
-	if err := r.save(); err != nil {
+	f, err := os.Create(roomPath("legacy"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := gob.NewEncoder(f).Encode(r.savedSnapshot()); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Close(); err != nil {
 		t.Fatal(err)
 	}
 	old := time.Now().Add(-25 * time.Hour)
