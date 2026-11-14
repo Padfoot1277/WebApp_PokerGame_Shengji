@@ -37,7 +37,7 @@ onMounted(() => {
       <SessionPanel /><GameView v-if="inGame" /><RoomView
         v-else
       /><MessageLatestPanel v-if="!inGame" />
-      <details class="panel rules">
+      <details v-if="!inGame" class="panel rules">
         <summary>游戏规则与操作帮助</summary>
         <p>
           四人固定搭档，你和对家一队，上家和下家一队。每人 25 张，底牌 8

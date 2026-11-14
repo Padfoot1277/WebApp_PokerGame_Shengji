@@ -76,6 +76,7 @@ const suitInfo = computed(() => suitToSymbol(props.card.suit));
   color: #000;
 }
 .trump {
-  border: 2px solid #ffe033;
+  border: 3px solid var(--trump-border);
+  box-shadow: inset 0 0 0 1px var(--trump-border-highlight);
 }
 </style>
