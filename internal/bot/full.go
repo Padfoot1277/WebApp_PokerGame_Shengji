@@ -545,6 +545,32 @@ func chooseFull(table Table) ([]rules.Card, error) {
 	return scoreFull(table, nil)
 }
 
+// Cash a guaranteed side-suit control before opponents run out of that suit.
+// This small tempo bonus is below a five-point card's tactical value: drawing
+// trump can still win when it collects appreciably more points. The caller
+// limits it to the early game while trumps remain available for future ruffs.
+func safeSideLeadBonus(table Table, cards []rules.Card, ctx *tacticalContext) float64 {
+	sc, same := rules.ComputeSuitClassAllSame(cards)
+	if !same || sc == rules.SCTrump {
+		return 0
+	}
+	blocks, err := rules.DecomposeThrow(cards, table.View.Trump.Trump, sc)
+	if err != nil || len(blocks) == 0 {
+		return 0
+	}
+	seat := table.View.MySeat
+	for other := range table.Hands {
+		if table.View.Seats[other].Team == table.View.Seats[seat].Team {
+			continue
+		}
+		win, unknown := ctx.canCover(&table, other, len(cards), sc, blocks, blocks)
+		if win || unknown {
+			return 0
+		}
+	}
+	return math.Min(12, 6+2*float64(len(cards)-1))
+}
+
 // With a visitor the tactical scores are also available for the hybrid policy.
 // Fixed work budgets make its shortlist independent of host load.
 func scoreFull(table Table, visit func([]rules.Card, float64)) ([]rules.Card, error) {
@@ -566,6 +592,11 @@ func scoreFullBudget(table Table, visit func([]rules.Card, float64), fixedBudget
 		}
 	}
 	lead := s.Trick.Plays[s.Trick.LeaderSeat]
+	var sideLeadTactics *tacticalContext
+	if lead == nil && len(h) > 15 && len(filterSuit(h, rules.SCTrump)) > 0 {
+		ctx := prepareTactics(table)
+		sideLeadTactics = &ctx
+	}
 	if lead != nil && s.Trick.BiggerSeat >= 0 && s.Trick.BiggerSeat < 4 && s.Trick.Plays[s.Trick.BiggerSeat] != nil {
 		incumbent := s.Trick.BiggerSeat
 		ctx := prepareTactics(table)
@@ -648,6 +679,9 @@ func scoreFullBudget(table Table, visit func([]rules.Card, float64), fixedBudget
 		// Later tricks can exploit long structures, but never outweigh handing over a loaded trick.
 		if lead == nil {
 			value += float64(len(m.cards)-1) * 1.5
+			if sideLeadTactics != nil {
+				value += safeSideLeadBonus(table, m.cards, sideLeadTactics)
+			}
 		}
 		if value > best {
 			best = value

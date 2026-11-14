@@ -90,6 +90,64 @@ func TestFullStateSmallTrumpTransfersLead(t *testing.T) {
 		t.Fatalf("partner did not take lead: %d", st.Trick.LeaderSeat)
 	}
 }
+
+func TestFullOpeningCashesSafeSideAceBeforeJoker(t *testing.T) {
+	deck := rules.NewDoubleDeck()
+	rng := rand.New(rand.NewSource(20))
+	rng.Shuffle(len(deck), func(i, j int) { deck[i], deck[j] = deck[j], deck[i] })
+	hands, _ := rules.Deal(deck)
+	st := fullFixture(hands)
+	_, cards := playChosen(t, st, 0)
+	if len(cards) != 1 || cards[0].Suit != rules.Club || cards[0].Rank != rules.RA {
+		t.Fatalf("cash safe club ace and save joker when returns are close: %v", cards)
+	}
+}
+
+func TestFullOpeningStillDrawsTrumpForMorePoints(t *testing.T) {
+	deck := rules.NewDoubleDeck()
+	rng := rand.New(rand.NewSource(6))
+	rng.Shuffle(len(deck), func(i, j int) { deck[i], deck[j] = deck[j], deck[i] })
+	hands, _ := rules.Deal(deck)
+	st := fullFixture(hands)
+	_, cards := playChosen(t, st, 0)
+	if len(cards) != 1 || cards[0].Rank != rules.RBJ {
+		t.Fatalf("safe side ace must not override a materially better trump lead: %v", cards)
+	}
+}
+
+func TestSafeSideLeadBonusChecksThrowsAndRuffs(t *testing.T) {
+	h := rules.Heart
+	for _, shape := range []string{"A", "AKK", "AAK"} {
+		for _, ruff := range []bool{false, true} {
+			t.Run(fmt.Sprintf("%s/ruff=%t", shape, ruff), func(t *testing.T) {
+				cards := []rules.Card{realCard(h, rules.RA, 0)}
+				if shape == "AKK" {
+					cards = append(cards, realCard(h, rules.RK, 0), realCard(h, rules.RK, 1))
+				} else if shape == "AAK" {
+					cards = append(cards, realCard(h, rules.RA, 1), realCard(h, rules.RK, 0))
+				}
+				st := fullFixture([4][]rules.Card{
+					append(append([]rules.Card(nil), cards...), realCard(rules.BigJoker, rules.RBJ, 0)),
+					{realCard(h, rules.R3, 0), realCard(h, rules.R3, 1), realCard(h, rules.R4, 0)},
+					{realCard(h, rules.R6, 0), realCard(h, rules.R6, 1), realCard(h, rules.R7, 0)},
+					{realCard(h, rules.R8, 0), realCard(h, rules.R8, 1), realCard(h, rules.R9, 0)},
+				})
+				if ruff {
+					st.Seats[1].Hand = []rules.Card{realCard(rules.Spade, rules.R3, 0), realCard(rules.Spade, rules.R3, 1), realCard(rules.Spade, rules.R4, 0)}
+				}
+				table := Observe(st, 0)
+				ctx := prepareTactics(table)
+				bonus := safeSideLeadBonus(table, classified(cards, st.Trump.Trump), &ctx)
+				if (bonus > 0) == ruff {
+					t.Fatalf("safe control should receive bonus, ruffable control should not: %f", bonus)
+				}
+				if !ruff && shape != "A" && len(safeThrowFull(table.Hands[0], 0, table, rules.SCH)) != 3 {
+					t.Fatal("safe three-card control must be offered as a whole throw")
+				}
+			})
+		}
+	}
+}
 func TestFullSnapshotIsPrivateAndDetached(t *testing.T) {
 	st := fullFixture([4][]rules.Card{{realCard(rules.Heart, rules.RA, 0)}, {realCard(rules.Heart, rules.R3, 0)}, {realCard(rules.Heart, rules.RK, 0)}, {realCard(rules.Heart, rules.R4, 0)}})
 	table := Observe(st, 0)
