@@ -142,10 +142,8 @@ function onClick(e: MouseEvent) {
 }
 .card.trump {
   border: 3px solid var(--trump-border);
-  box-shadow: inset 0 0 0 1px var(--trump-border-highlight);
 }
 .card.selected.trump {
   border-color: #379b80;
-  box-shadow: none;
 }
 </style>
