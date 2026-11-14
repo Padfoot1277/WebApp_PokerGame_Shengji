@@ -2,7 +2,7 @@
 import { computed } from "vue";
 import { useGameStore } from "../store/game";
 import TrickPlayView from "./TrickPlayView.vue";
-import { showingLast, moveTag, seatOffsets } from "../utils/table";
+import { showingLast, moveTag, seatOffsets, leaderSeats } from "../utils/table";
 const game = useGameStore();
 const previous = computed({
   get: () => game.reviewPrevious,
@@ -42,8 +42,8 @@ const last = computed(() =>
 const moves = computed(() =>
   last.value ? v.value?.trick.lastMoves : v.value?.trick.playedMoves,
 );
-const leader = computed(() =>
-  last.value ? v.value?.trick.lastLeaderSeat : v.value?.trick.leaderSeat,
+const leaders = computed(() =>
+  v.value ? leaderSeats(v.value, previous.value) : [],
 );
 const biggest = computed(() =>
   last.value ? v.value?.trick.winnerSeat : v.value?.trick.biggerSeat,
@@ -96,7 +96,7 @@ const biggest = computed(() =>
               >⏳</span
             >
             <span
-              v-if="index === leader"
+              v-if="leaders.includes(index)"
               class="chip"
               title="先手"
               aria-label="先手"

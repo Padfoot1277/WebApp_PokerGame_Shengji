@@ -18,7 +18,7 @@ const teamLabel = (index: number) =>
 </script>
 
 <template>
-  <div class="panel">
+  <div class="status-section">
     <div class="row">
       <div class="round">
         第 <span class="round-num">{{ roundIndex + 1 }}</span> 小局
@@ -50,7 +50,7 @@ const teamLabel = (index: number) =>
   gap: 24px; /* 控制两个元素之间的距离 */
 }
 
-.panel {
+.status-section {
   padding: 8px 16px;
 }
 
@@ -112,7 +112,7 @@ const teamLabel = (index: number) =>
   white-space: nowrap;
 }
 @media (max-width: 480px) {
-  .panel {
+  .status-section {
     padding: 6px 10px;
   }
   .round {

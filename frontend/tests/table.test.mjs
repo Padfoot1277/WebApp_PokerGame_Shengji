@@ -24,6 +24,65 @@ function load(source, extras = {}) {
 const table = load(
   readFileSync(new URL("../src/utils/table.ts", import.meta.url), "utf8"),
 ).module.exports;
+const cards = load(
+  readFileSync(new URL("../src/utils/card.ts", import.meta.url), "utf8"),
+).module.exports;
+
+test("flags show all racing seats, then the initial caller and actual first leader", () => {
+  const s = {
+    phase: "call_trump", callMode: "race", starterSeat: -1,
+    trick: { leaderSeat: 0 },
+  };
+  const flags = () => Array.from(table.leaderSeats(s));
+  assert.deepEqual(flags(), [0, 1, 2, 3]);
+  s.callMode = "ordered";
+  s.starterSeat = 3;
+  s.callTurnSeat = 3;
+  assert.deepEqual(flags(), [3]);
+  s.callTurnSeat = 0; // Passing does not change who leads if nobody calls.
+  assert.deepEqual(flags(), [3]);
+  s.starterSeat = 1; // A different player successfully calls trump.
+  for (const phase of ["bottom", "trump_fight"]) {
+    s.phase = phase;
+    assert.deepEqual(flags(), [1]);
+  }
+  s.phase = "play_trick";
+  s.trick = { leaderSeat: 1, playedMoves: [], resolved: false };
+  assert.deepEqual(flags(), [1]);
+  s.trick.leaderSeat = 2;
+  s.trick.lastLeaderSeat = 1;
+  assert.deepEqual(flags(), [2]);
+  assert.deepEqual(Array.from(table.leaderSeats(s, true)), [1]);
+  s.trick.resolved = true;
+  assert.deepEqual(flags(), [1]);
+  s.phase = "lobby";
+  assert.deepEqual(flags(), []);
+});
+
+test("hand suit groups alternate colors for every trump suit without changing cards", () => {
+  const groups = ["C", "D", "S", "H"].map((suit, id) => [
+    { id, suit, rank: "A" }, { id: id + 4, suit, rank: "K" },
+  ]);
+  const hard = [{ id: 8, suit: "BJ", rank: "BJ", suit_class: "主牌" }];
+  for (const [suit, expected] of [
+    ["", ["BJ", "H", "S", "D", "C"]],
+    ["H", ["BJ", "S", "D", "C"]],
+    ["S", ["BJ", "H", "C", "D"]],
+    ["D", ["BJ", "S", "H", "C"]],
+    ["C", ["BJ", "H", "S", "D"]],
+  ]) {
+    const trumps = [...hard, ...groups.filter((g) => g[0].suit === suit).flat()];
+    const input = [...groups.filter((g) => g[0].suit !== suit), trumps];
+    const before = JSON.stringify(input);
+    const result = cards.orderedHandGroups(input, { hasTrumpSuit: !!suit, suit, levelRank: "2" });
+    assert.deepEqual(Array.from(result, (g) => g[0].suit), expected);
+    assert.equal(JSON.stringify(input), before);
+    for (const group of result) assert.ok(input.includes(group));
+  }
+  assert.equal(cards.orderedHandGroups(null).length, 0);
+  const pending = [...groups, hard];
+  assert.deepEqual(Array.from(cards.orderedHandGroups(pending, { levelRank: "Pending" }), (g) => g[0].suit), ["BJ", "H", "S", "D", "C"]);
+});
 test("settled cards remain until the next lead, with history available afterward", () => {
   const s = {
     phase: "play_trick",
@@ -86,7 +145,7 @@ test("hand selection waits for release and scrolling cancels the whole gesture",
           : name.includes("play-feedback")
             ? play
             : name.includes("utils/card")
-              ? { suitToSymbol: (s) => ({ symbol: s }) }
+              ? cards
               : {},
     defineProps: () => props,
     defineEmits: () => (name, ids) => {

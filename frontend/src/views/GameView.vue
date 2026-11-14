@@ -24,7 +24,7 @@ function clearSelection() {
 <template>
   <div class="view-container">
     <FloatingFeedback />
-    <div class="game-summary"><GameStatusBar /><RoundStatusBar /></div>
+    <div class="panel game-summary"><GameStatusBar /><RoundStatusBar /></div>
     <TurnGuide />
     <div class="play-workspace">
       <SeatBar class="table-dock" />
@@ -57,6 +57,7 @@ function clearSelection() {
 
 <style scoped>
 .game-summary {
+  padding: 0;
   display: flex;
   gap: 10px;
   flex-wrap: wrap;

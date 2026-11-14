@@ -33,8 +33,7 @@ onMounted(() => {
 <template>
   <div class="app-root">
     <ArchiveView v-if="showingArchive" :id="route.split('/')[2] || ''" />
-    <template v-else
-      ><nav class="archive-entry"><a href="#/archives">小局档案 ↗</a></nav>
+    <template v-else>
       <SessionPanel /><GameView v-if="inGame" /><RoomView
         v-else
       /><MessageLatestPanel v-if="!inGame" />
@@ -67,17 +66,6 @@ onMounted(() => {
   </div>
 </template>
 <style>
-.archive-entry {
-  width: min(100%, 1200px);
-  margin: 0 auto;
-  padding: 8px 16px 0;
-  text-align: right;
-}
-.archive-entry a {
-  color: #245d48;
-  font-weight: 600;
-  text-underline-offset: 4px;
-}
 .rules {
   max-width: 1100px;
   margin: 16px auto;

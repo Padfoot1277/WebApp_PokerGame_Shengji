@@ -3,15 +3,6 @@ import { computed, ref, watch, onMounted, onUnmounted } from "vue";
 import { useGameStore } from "../store/game";
 import { teamName, relativeSeat } from "../utils/seat";
 const game = useGameStore();
-const confirm = ref(false);
-const copied = ref(false);
-watch(
-  () => `${game.view?.roomId}:${game.view?.roundIndex}:${game.view?.phase}`,
-  () => {
-    confirm.value = false;
-    copied.value = false;
-  },
-);
 const sound = ref(localStorage.getItem("shengji-sound") !== "false");
 const vibration = ref(localStorage.getItem("shengji-vibration") !== "false");
 let audio: AudioContext | null = null;
@@ -93,12 +84,7 @@ const voted = computed(() => {
   return s?.surrenderVotes[s.mySeat] ?? false;
 });
 function surrender() {
-  if (!confirm.value && !voted.value) {
-    confirm.value = true;
-    return;
-  }
   game.sendEvent(voted.value ? "game.cancel_surrender" : "game.surrender", {});
-  confirm.value = false;
 }
 function leaveRoom() {
   const s = v.value;
@@ -114,43 +100,37 @@ function leaveRoom() {
   game.disconnect();
   game.view = null;
 }
-async function invite() {
-  if (!v.value) return;
-  const url = new URL(location.href);
-  url.searchParams.set("room", v.value.roomId);
-  try {
-    await navigator.clipboard.writeText(url.toString());
-    copied.value = true;
-  } catch {
-    game.pushMessage("notice", `请分享房间码：${v.value.roomId}`);
-  }
-}
 </script>
 <template>
-  <div class="connection-banner" role="status">
-    <span :class="{ offline: game.wsStatus !== 'open' }">{{
-      {
-        idle: "尚未连接",
-        connecting: "正在连接，恢复牌局…",
-        open: "已连接",
-        closed: "连接中断，正在重连…",
-      }[game.wsStatus]
-    }}</span
-    ><template v-if="v"
-      ><span>房间 {{ v.roomId }}</span
-      ><button @click="leaveRoom">返回大厅</button
-      ><button @click="invite">
-        {{ copied ? "邀请链接已复制" : "邀请朋友" }}
-      </button></template
-    ><button
+  <div class="connection-banner">
+    <nav class="session-actions" aria-label="房间操作">
+      <button v-if="v" @click="leaveRoom">返回大厅</button>
+      <a class="archive-link" href="#/archives">小局档案</a>
+      <button
+        v-if="canSurrender"
+        :disabled="game.pending || game.wsStatus !== 'open'"
+        :aria-pressed="voted"
+        @click="surrender"
+      >
+        {{ voted ? "取消弃局" : "申请弃局" }}
+      </button>
+    </nav>
+    <span role="status" :class="{ offline: game.wsStatus !== 'open' }"
+      >{{
+        {
+          idle: "尚未连接",
+          connecting: "正在连接，恢复牌局…",
+          open: "已连接",
+          closed: "连接中断，正在重连…",
+        }[game.wsStatus]
+      }}<template v-if="v">，房间 {{ v.roomId }}</template></span
+    >
+    <button
       v-if="game.wsStatus === 'connecting' || game.wsStatus === 'closed'"
       @click="game.disconnect()"
     >
-      停止重连</button
-    ><label
-      ><input v-model="sound" type="checkbox" @change="enableSound" />
-      提示音</label
-    >
+      停止重连
+    </button>
   </div>
   <section
     v-if="v && (v.phase === 'round_settle' || v.phase === 'game_over')"
@@ -179,22 +159,6 @@ async function invite() {
       {{ relativeSeat(v.nextStarterSeat, v.mySeat) }}可以开始下一小局。
     </p>
   </section>
-  <details v-if="canSurrender" class="surrender">
-    <summary>提前结束本局 / 弃局</summary>
-    <p v-if="v">
-      {{
-        v.surrenderVotes.filter(Boolean).length
-          ? "已有牌友申请弃局。同队两人确认后立即按当前得分结算。"
-          : "需要提前结束本局？可与队友共同申请弃局。"
-      }}
-    </p>
-    <button
-      :disabled="game.pending || game.wsStatus !== 'open'"
-      @click="surrender"
-    >
-      {{ voted ? "撤回弃局" : confirm ? "确认申请弃局" : "申请弃局" }}</button
-    ><button v-if="confirm" @click="confirm = false">取消</button>
-  </details>
 </template>
 <style scoped>
 .connection-banner {
@@ -203,12 +167,36 @@ async function invite() {
   align-items: center;
   flex-wrap: wrap;
   margin: 12px auto;
+  width: 100%;
   max-width: 1100px;
   padding: 0 12px;
   color: #26765c;
   font-size: 13px;
 }
-.connection-banner button {
+.session-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.archive-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  border-radius: 8px;
+  background: #23785f;
+  color: #fff;
+  text-decoration: none;
+}
+.archive-link:hover {
+  filter: brightness(1.07);
+}
+.archive-link:focus-visible {
+  outline: 3px solid #cb9e2e;
+  outline-offset: 3px;
+}
+.connection-banner button,
+.archive-link {
   padding: 6px 10px;
   font-size: 12px;
 }
@@ -221,17 +209,5 @@ async function invite() {
 }
 .settlement strong {
   font-size: 26px;
-}
-.surrender {
-  margin: 0 auto;
-  width: 100%;
-  max-width: 1100px;
-  padding: 0 12px;
-  color: #6c786e;
-  font-size: 13px;
-}
-.surrender button {
-  color: #fff;
-  margin-right: 8px;
 }
 </style>

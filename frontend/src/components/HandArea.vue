@@ -2,7 +2,7 @@
 import { computed, watch } from "vue";
 import { useGameStore } from "../store/game";
 import { unavailableCard } from "../utils/play-feedback";
-import { suitToSymbol } from "../utils/card";
+import { orderedHandGroups, suitToSymbol } from "../utils/card";
 import CardItem from "./CardItem.vue";
 const props = defineProps<{ selectedIds: number[] }>();
 const emit = defineEmits<{
@@ -21,7 +21,9 @@ let gesture: {
   seen: Set<number>;
 } | null = null;
 let lastCardId: number | null = null;
-const hand = computed(() => game.view?.myHand ?? []);
+const hand = computed(() =>
+  orderedHandGroups(game.view?.myHand, game.view?.trump),
+);
 function toggle(id: number) {
   if (game.reviewPrevious || game.pending) return;
   const ids = new Set(props.selectedIds);
@@ -179,9 +181,6 @@ watch(
   touch-action: pan-y;
   user-select: none;
   padding: 4px 0;
-}
-.suit-group + .suit-group {
-  border-top: 1px solid #edf1ed;
 }
 .card-wrap {
   touch-action: pan-y;

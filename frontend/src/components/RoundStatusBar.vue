@@ -31,7 +31,7 @@ const trumpSuitInfo = computed(() => {
 </script>
 
 <template>
-  <div class="panel">
+  <div class="status-section">
     <div class="info-line">
       <span class="tag">
         <strong>阶段</strong>
@@ -80,6 +80,9 @@ const trumpSuitInfo = computed(() => {
 </template>
 
 <style scoped>
+.status-section {
+  padding: 16px;
+}
 .row {
   margin-top: 6px;
 }
@@ -204,7 +207,7 @@ const trumpSuitInfo = computed(() => {
   align-items: center;
 }
 @media (max-width: 759px) {
-  .panel {
+  .status-section {
     padding: 8px 10px;
   }
   .info-line {

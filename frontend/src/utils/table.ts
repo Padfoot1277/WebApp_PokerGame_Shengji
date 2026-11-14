@@ -2,6 +2,19 @@ import type { Move, ViewState } from "../types/view";
 // Row-major cells; clockwise around the grid follows the real seat indices.
 export const lobbySeatOrder = [0, 1, 3, 2] as const;
 export const seatOffsets = [2, 3, 1, 0] as const;
+export function leaderSeats(s: ViewState, review = false): number[] {
+  if (["dealing", "call_trump"].includes(s.phase)) {
+    return s.callMode === "race" ? [0, 1, 2, 3] : [s.starterSeat];
+  }
+  if (["bottom", "trump_fight"].includes(s.phase)) return [s.starterSeat];
+  if (["play_trick", "round_settle", "game_over"].includes(s.phase)) {
+    const seat = showingLast(s, review)
+      ? s.trick.lastLeaderSeat
+      : s.trick.leaderSeat;
+    return seat === undefined ? [] : [seat];
+  }
+  return [];
+}
 export function showingLast(s: ViewState, review = false) {
   return (
     review ||
