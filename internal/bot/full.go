@@ -94,6 +94,7 @@ type fullSearch struct {
 	afterControl map[string]float64
 	control      [4]float64
 	safeBlocks   [4][]rules.Block
+	safeWinner   int // incumbent whose partnership cannot be overtaken by a pending opponent
 	nodes        int
 }
 
@@ -186,7 +187,15 @@ func costOf(cards, hand []rules.Card, seat int, table Table) float64 {
 	if after > 0 {
 		for _, sc := range []rules.SuitClass{rules.SCH, rules.SCS, rules.SCD, rules.SCC} {
 			if len(filterSuit(hand, sc)) > 0 && len(filterSuit(rest, sc)) == 0 {
-				cost -= 4
+				// Voiding a weak suit helps future ruffs, but throwing away
+				// high cards to create that void consumes the same resources.
+				power := 0.0
+				for _, c := range cards {
+					if c.SuitClass == sc {
+						power += strength(c, t)
+					}
+				}
+				cost -= math.Max(0, 4-math.Max(0, power-8))
 			}
 		}
 	}
@@ -423,7 +432,15 @@ func (q *fullSearch) terminal(line trickLine) float64 {
 	if !attacking && ours {
 		weight = 3.3
 	}
-	value := sign*(line.points*weight+5+math.Min(9, q.controlAfter(line.winner, line.selected[line.winner]))) - line.cost
+	// Taking a safe partner's trick does not create new initiative. Keep its
+	// reserve bonus tied to the incumbent so a resource-rich follower cannot
+	// manufacture a benefit merely by overtaking with a trump or joker.
+	initiative := line.winner
+	if q.safeWinner >= 0 && s.Seats[q.safeWinner].Team == s.Seats[line.winner].Team {
+		initiative = q.safeWinner
+	}
+	reserve := q.controlAfter(initiative, line.selected[initiative])
+	value := sign*(line.points*weight+5+math.Min(9, reserve)) - line.cost
 	last := true
 	for seat, h := range q.table.Hands {
 		if len(h) > len(line.selected[seat]) {
@@ -541,7 +558,7 @@ func scoreFullBudget(table Table, visit func([]rules.Card, float64), fixedBudget
 	if len(h) == 0 {
 		return nil, fmt.Errorf("empty full-state hand")
 	}
-	q := fullSearch{table: table, team: s.Seats[seat].Team, fixedBudget: fixedBudget, deadline: time.Now().Add(1500 * time.Millisecond), cache: map[string][]fullMove{}, afterControl: map[string]float64{}}
+	q := fullSearch{table: table, team: s.Seats[seat].Team, safeWinner: -1, fixedBudget: fixedBudget, deadline: time.Now().Add(1500 * time.Millisecond), cache: map[string][]fullMove{}, afterControl: map[string]float64{}}
 	for i, hand := range table.Hands {
 		q.safeBlocks[i] = controlBlocks(hand, i, table)
 		for _, block := range q.safeBlocks[i] {
@@ -549,6 +566,24 @@ func scoreFullBudget(table Table, visit func([]rules.Card, float64), fixedBudget
 		}
 	}
 	lead := s.Trick.Plays[s.Trick.LeaderSeat]
+	if lead != nil && s.Trick.BiggerSeat >= 0 && s.Trick.BiggerSeat < 4 && s.Trick.Plays[s.Trick.BiggerSeat] != nil {
+		incumbent := s.Trick.BiggerSeat
+		ctx := prepareTactics(table)
+		safe := true
+		for other := range table.Hands {
+			if s.Trick.Plays[other] != nil || s.Seats[other].Team == s.Seats[incumbent].Team {
+				continue
+			}
+			win, unknown := ctx.canCover(&table, other, len(lead.Cards), lead.SuitClass, lead.Blocks, s.Trick.Plays[incumbent].Blocks)
+			if win || unknown {
+				safe = false
+				break
+			}
+		}
+		if safe {
+			q.safeWinner = incumbent
+		}
+	}
 	roots := []fullMove{}
 	if lead == nil {
 		for _, sc := range []rules.SuitClass{rules.SCH, rules.SCS, rules.SCD, rules.SCC, rules.SCTrump} {

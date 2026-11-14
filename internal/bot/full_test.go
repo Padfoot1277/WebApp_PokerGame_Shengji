@@ -164,6 +164,46 @@ func TestFullStateDoesNotOvertrumpSafePartner(t *testing.T) {
 		t.Fatalf("should pad 10, not waste a joker: %v", cards)
 	}
 }
+
+func TestFullStateKeepsJokerWhenPartnerAlreadyWins(t *testing.T) {
+	st := fullFixture([4][]rules.Card{
+		{realCard(rules.Heart, rules.RA, 0), realCard(rules.Heart, rules.R4, 0), realCard(rules.Heart, rules.R6, 0), realCard(rules.Heart, rules.R7, 0), realCard(rules.Heart, rules.R8, 0), realCard(rules.Heart, rules.R3, 1)},
+		{realCard(rules.Heart, rules.R3, 0), realCard(rules.Heart, rules.R9, 0), realCard(rules.Heart, rules.RJ, 0), realCard(rules.Heart, rules.RQ, 0), realCard(rules.Heart, rules.RK, 0), realCard(rules.Heart, rules.RJ, 1)},
+		{realCard(rules.BigJoker, rules.RBJ, 0), realCard(rules.Diamond, rules.RA, 0), realCard(rules.Diamond, rules.RA, 1), realCard(rules.Club, rules.RA, 0), realCard(rules.Club, rules.R3, 0), realCard(rules.Spade, rules.R3, 0)},
+		{realCard(rules.Heart, rules.R4, 1), realCard(rules.Heart, rules.R6, 1), realCard(rules.Heart, rules.R7, 1), realCard(rules.Heart, rules.R8, 1), realCard(rules.Heart, rules.R9, 1), realCard(rules.Heart, rules.RQ, 1)},
+	})
+	for seat, rank := range []rules.Rank{rules.RA, rules.R3} {
+		next, err := ruleStep(st, game.PlayCardsPayload{CardIDs: []int{realCard(rules.Heart, rank, 0).ID}})
+		if err != nil {
+			t.Fatalf("seat %d: %v", seat, err)
+		}
+		st = next
+	}
+	_, cards := playChosen(t, st, 2)
+	if len(cards) != 1 || cards[0].Suit != rules.Club || cards[0].Rank != rules.R3 {
+		t.Fatalf("keep joker and controls under partner's safe ace: %v", cards)
+	}
+}
+
+func TestFullStateKeepsControlInsteadOfCreatingUselessVoid(t *testing.T) {
+	st := fullFixture([4][]rules.Card{
+		{realCard(rules.Heart, rules.R3, 0), realCard(rules.Heart, rules.R6, 0), realCard(rules.Heart, rules.R7, 0), realCard(rules.Heart, rules.R8, 0)},
+		{realCard(rules.BigJoker, rules.RBJ, 0), realCard(rules.Club, rules.R6, 0), realCard(rules.Club, rules.R7, 0), realCard(rules.Club, rules.R8, 0)},
+		{realCard(rules.Heart, rules.R4, 0), realCard(rules.Heart, rules.R9, 0), realCard(rules.Heart, rules.RJ, 0), realCard(rules.Heart, rules.RQ, 0)},
+		{realCard(rules.Diamond, rules.RA, 0), realCard(rules.Club, rules.R3, 0), realCard(rules.Club, rules.R4, 0), realCard(rules.Spade, rules.R3, 0)},
+	})
+	for _, card := range []rules.Card{realCard(rules.Heart, rules.R3, 0), realCard(rules.BigJoker, rules.RBJ, 0), realCard(rules.Heart, rules.R4, 0)} {
+		next, err := ruleStep(st, game.PlayCardsPayload{CardIDs: []int{card.ID}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		st = next
+	}
+	_, cards := playChosen(t, st, 3)
+	if len(cards) != 1 || cards[0].Suit != rules.Club || cards[0].Rank != rules.R3 {
+		t.Fatalf("discard low club under safe partner, retain ace for later: %v", cards)
+	}
+}
 func TestFullBottomClearsWeakShortSuitAndKeepsControls(t *testing.T) {
 	for _, kind := range []string{"weak", "ace", "pair"} {
 		h := []rules.Card{}
