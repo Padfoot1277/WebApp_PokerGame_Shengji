@@ -2,6 +2,7 @@
 import { computed } from "vue";
 import { useGameStore } from "../store/game";
 import TrickPlayView from "./TrickPlayView.vue";
+import SeatIdentity from "./SeatIdentity.vue";
 import { showingLast, moveTag, seatOffsets, leaderSeats } from "../utils/table";
 const game = useGameStore();
 const previous = computed({
@@ -48,6 +49,24 @@ const leaders = computed(() =>
 const biggest = computed(() =>
   last.value ? v.value?.trick.winnerSeat : v.value?.trick.biggerSeat,
 );
+const seatTags = computed(() =>
+  [0, 1, 2, 3].map((index) => {
+    const tags = [];
+    if (index === turn.value && !previous.value)
+      tags.push({ key: "turn", text: "⏳", label: "轮到", tone: "turn" });
+    if (leaders.value.includes(index))
+      tags.push({ key: "leader", text: "🚩", label: "先手" });
+    if (moves.value?.[index] && index === biggest.value)
+      tags.push({ key: "biggest", text: "👑", label: "最大", tone: "biggest" });
+    const move = moveTag(moves.value?.[index]);
+    if (move) tags.push({ key: "move", text: move.label, label: move.label });
+    if (!v.value?.seats[index]?.online)
+      tags.push({ key: "offline", text: "📴 离线", label: "离线" });
+    if (v.value?.surrenderVotes[index])
+      tags.push({ key: "surrender", text: "🏳️ 申请弃局", label: "申请弃局" });
+    return tags;
+  }),
+);
 </script>
 <template>
   <section v-if="v" class="panel">
@@ -86,35 +105,10 @@ const biggest = computed(() =>
         ]"
       >
         <header>
-          <strong>{{ v.seats[index]?.name || "空位" }}</strong>
-          <div class="seat-meta">
-            <span
-              v-if="index === turn && !previous"
-              class="chip turn"
-              title="轮到"
-              aria-label="轮到"
-              >⏳</span
-            >
-            <span
-              v-if="leaders.includes(index)"
-              class="chip"
-              title="先手"
-              aria-label="先手"
-              >🚩</span
-            >
-            <span
-              v-if="moves?.[index] && index === biggest"
-              class="chip biggest"
-              title="最大"
-              aria-label="最大"
-              >👑</span
-            >
-            <span v-if="moveTag(moves?.[index])" class="chip">{{
-              moveTag(moves?.[index])?.label
-            }}</span>
-            <span v-if="!v.seats[index]?.online" class="chip">📴 离线</span>
-            <span v-if="v.surrenderVotes[index]" class="chip">🏳️ 申请弃局</span>
-          </div>
+          <SeatIdentity
+            :name="v.seats[index]?.name || '空位'"
+            :tags="seatTags[index] ?? []"
+          />
         </header>
         <TrickPlayView
           v-if="['play_trick', 'round_settle', 'game_over'].includes(v.phase)"
@@ -170,29 +164,8 @@ const biggest = computed(() =>
 .mine {
   box-shadow: inset 0 -3px #21846b;
 }
-.seat-meta {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: #466557;
-  margin-top: 8px;
-}
-small {
-  color: #65796f;
-}
 header {
   margin-bottom: 6px;
-}
-header {
-  display: flex;
-  gap: 8px;
-  align-items: baseline;
-  flex-wrap: wrap;
-}
-.seat-meta {
-  margin-top: 4px;
-  gap: 6px;
 }
 .table-heading {
   gap: 8px;
@@ -218,41 +191,9 @@ header {
   .seat {
     padding: 6px;
   }
-  .seat header small {
-    font-size: 10px;
-  }
-  .seat-meta {
-    font-size: 11px;
-    gap: 4px;
-  }
   .table-heading {
     margin-bottom: 8px;
     font-size: 12px;
   }
-  .chip {
-    padding: 2px 4px;
-  }
-}
-.seat-meta {
-  margin-left: auto;
-}
-.nickname {
-  margin-left: auto;
-  overflow-wrap: anywhere;
-}
-.chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  padding: 3px 7px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.78);
-  line-height: 1.3;
-}
-.chip.turn {
-  color: #79531b;
-}
-.chip.biggest {
-  color: #6043a0;
 }
 </style>
